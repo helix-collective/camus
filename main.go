@@ -103,14 +103,13 @@ func clientMain() {
 	}
 
 	push := func(server string) {
-		//req := &NewDeployDirRequest{}
-		//var reply NewDeployDirReply
-		//client.Call("RpcServer.NewDeployDir", req, &reply)
+		req := &NewDeployDirRequest{}
+		var reply NewDeployDirResponse
+		client.Call("RpcServer.NewDeployDir", req, &reply)
 
-		//target := fmt.Sprintf("%s:%s", app.SshTarget(server), reply.Path)
+		target := fmt.Sprintf("%s:%s", app.SshTarget(server), reply.Path)
 
-		target := "/Users/dan/code/OpenSource/camus/testDeploys/deploys/1235"
-
+		println("RSYNC")
 		cmd := exec.Command("rsync", "-az",
 			fmt.Sprintf("%s/", app.BuildOutputDir()),
 			target)
@@ -118,6 +117,8 @@ func clientMain() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
+
+		println("RSYNC DONE")
 
 		if err != nil {
 			log.Fatalf("Failed to rsync: %s", err)

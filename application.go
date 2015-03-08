@@ -36,7 +36,7 @@ type ApplicationDef struct {
 	StatusEndpoint string
 
 	// e.g. user@host  (no path)
-	SshTarget map[string]string
+	SshTargets map[string]string
 }
 
 func ApplicationFromConfig(file string) Application {
@@ -56,7 +56,7 @@ func (a *AppImpl) RunCmd(port int) string {
 	return strings.Replace(a.def.RunCmd, "%PORT%", fmt.Sprintf("%d", port), -1)
 }
 func (a *AppImpl) SshTarget(server string) string {
-	return a.def.SshTarget[server]
+	return a.def.SshTargets[server]
 }
 
 func (a *AppImpl) BuildCmd() string {

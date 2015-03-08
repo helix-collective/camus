@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 )
 
@@ -37,6 +38,11 @@ type ServerImpl struct {
 }
 
 func NewServerImpl(root string) *ServerImpl {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		log.Fatal("Root path:", err)
+	}
+
 	cfgPath := path.Join(root, configPath)
 	data, err := ioutil.ReadFile(cfgPath)
 	if err != nil {
@@ -53,8 +59,11 @@ func NewServerImpl(root string) *ServerImpl {
 func (s *ServerImpl) NewDeployDir() string {
 	// TODO(koz): Use a timestamp.
 
-	timestamp := time.Now().Format("%Y%m%d%H%M%S")
-	return path.Join(s.root, deployPath, timestamp+"-")
+	t := time.Now()
+	timestamp := fmt.Sprintf("%d-%02d-%02d-%02d-%02d-%02d",
+		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+
+	return path.Join(s.root, deployPath, timestamp)
 }
 
 func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
