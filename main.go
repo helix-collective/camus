@@ -3,13 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"os/exec"
-	"path"
 	"time"
 )
 
@@ -21,56 +19,7 @@ type Deploy struct {
 
 type Label string
 
-type Server interface {
-	ListLabels() ([]Label, error)
-	ListDeploys() ([]Deploy, error)
-	Run(deployId string) error
-	Stop(deployId string) error
-	Label(deployId string, label Label) error
-
-	// TODO Maintenance mode
-}
-
-const deployPath = "deploys"
-
-type ServerImpl struct {
-	root string
-}
-
-func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
-	infos, err := ioutil.ReadDir(path.Join(s.root, deployPath))
-	if err != nil {
-		return nil, err
-	}
-	var result []Deploy
-	for _, info := range infos {
-		result = append(result, Deploy{
-			Id:   info.Name(),
-			Port: -1,
-		})
-	}
-	return result, nil
-}
-
 const CAMUS_PORT = 9966
-
-type RpcServer struct {
-	server *ServerImpl
-}
-
-type ListDeploysRequest struct{}
-type ListDeploysReply struct {
-	Deploys []Deploy
-}
-
-func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply) error {
-	deploys, err := s.server.ListDeploys()
-	if err != nil {
-		return err
-	}
-	reply.Deploys = deploys
-	return nil
-}
 
 /*
 
@@ -122,11 +71,7 @@ func main() {
 }
 
 func serverMain() {
-	s := &RpcServer{
-		server: &ServerImpl{
-			root: *serverRoot,
-		},
-	}
+	s := &RpcServer{NewServerImpl(*serverRoot)}
 	rpc.Register(s)
 	rpc.HandleHTTP()
 	l, err := net.Listen("tcp", *port)

@@ -4,7 +4,7 @@ var app = express()
 var port = process.argv[2] - 0;
 
 if (!(port >= 2000 && port <= 30000)) {
-  throw new Error("Bad port: " + process.argv[1]);
+  throw new Error("Bad port: " + process.argv[2]);
 }
 
 app.get('/', function (req, res) {
