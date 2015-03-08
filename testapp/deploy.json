@@ -1,0 +1,9 @@
+{
+  "BuildCmd": "./build.sh",
+  "BuildOutputDir": "./build",
+  "RunCmd": "node app.js %PORT%",
+  "StatusEndpoint": "/status",
+  "SshTargets": {
+    "prod": "localhost"
+  }
+}

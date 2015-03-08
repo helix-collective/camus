@@ -56,7 +56,7 @@ type Application struct {
 	StatusEndpoint string
 
 	// e.g. user@host  (no path)
-	SshTarget string
+	SshTarget map[string]string
 }
 
 func gitTag( /*args*/ ) {
