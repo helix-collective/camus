@@ -1,10 +1,14 @@
 package main
 
-import "flag"
-import "fmt"
-import "io/ioutil"
-import "log"
-import "path"
+import (
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os/exec"
+	"path"
+	"time"
+)
 
 type Deploy struct {
 	Id   string
@@ -48,6 +52,8 @@ func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
 	}
 	return result, nil
 }
+
+const CAMUS_PORT = 9966
 
 /*
 
@@ -94,6 +100,10 @@ func rsync( /*args*/ ) {
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
 
 func main() {
+	fmt.Println("To be")
+
+	setupChannel("localhost")
+
 	flag.Parse()
 	server := ServerImpl{
 		root: *serverRoot,
@@ -106,4 +116,24 @@ func main() {
 	for _, deploy := range deploys {
 		fmt.Printf("%v\n", deploy)
 	}
+
+}
+
+func setupChannel(login string) func() {
+	port := CAMUS_PORT
+	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", port, port))
+	pipe, err := cmd.StdinPipe()
+	err = cmd.Start()
+
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+
+	return func() {
+		pipe.Close()
+	}
+}
+
+func sleepSeconds(seconds int) {
+	time.Sleep(time.Duration(seconds) * time.Second)
 }
