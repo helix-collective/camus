@@ -6,6 +6,7 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
+	"path"
 )
 
 type Client interface {
@@ -61,22 +62,40 @@ func (c *ClientImpl) Push(server string) (string, error) {
 		return "", err
 	}
 
-	target := fmt.Sprintf("%s:%s", c.app.SshTarget(server), reply.Path)
+	sshTarget := c.app.SshTarget(server)
 
-	cmd := exec.Command("rsync", "-az",
-		fmt.Sprintf("%s/", c.app.BuildOutputDir()),
-		target)
+	finalTarget := reply.Path
+	latestDir := path.Join(finalTarget, "/../../_latest")
+
+	latestTarget := fmt.Sprintf("%s:%s", sshTarget, latestDir)
+
+	c.info("uploading package...")
+
+	if err := runVisibleCmd("rsync", "-azv", "--delete",
+		c.app.BuildOutputDir()+"/",
+		latestTarget); err != nil {
+
+		return "", err
+	}
+
+	if err := runVisibleCmd("ssh", sshTarget,
+		"rsync", "-a", "--delete",
+		latestDir+"/", finalTarget); err != nil {
+		return "", err
+	}
+
+	c.info("done uploading")
+
+	return reply.DeployId, nil
+}
+
+func runVisibleCmd(command string, args ...string) error {
+	cmd := exec.Command(command, args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	c.info("uploading package...")
-	if err := cmd.Run(); err != nil {
-		return "", err
-	}
-	c.info("done uploading")
-
-	return reply.DeployId, nil
+	return cmd.Run()
 }
 
 func (c *ClientImpl) Run(deployId string) (int, error) {
