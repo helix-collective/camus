@@ -16,6 +16,14 @@ import (
 	"time"
 )
 
+type Deploy struct {
+	Id   string
+	Note string
+	Port int // -1 for not running
+}
+
+type Label string
+
 type Server interface {
 	ListLabels() ([]Label, error)
 	ListDeploys() ([]Deploy, error)
@@ -129,7 +137,10 @@ func (s *ServerImpl) Run(deployId string) error {
 
 	deployPath := path.Join(s.root, deployPath, deployId)
 
-	app := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
+	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
+	if err != nil {
+		return err
+	}
 
 	s.config.Ports[port] = deployId
 	s.writeConfig()

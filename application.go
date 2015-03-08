@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 )
 
@@ -39,17 +38,17 @@ type ApplicationDef struct {
 	SshTargets map[string]string
 }
 
-func ApplicationFromConfig(file string) Application {
+func ApplicationFromConfig(file string) (Application, error) {
 	var def ApplicationDef
 
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
-		log.Fatalf("Failed to read deploy file: %s, error: %s", file, err)
+		return nil, err
 	}
 
 	json.Unmarshal(data, &def)
 
-	return &AppImpl{def}
+	return &AppImpl{def}, nil
 }
 
 func (a *AppImpl) RunCmd(port int) string {

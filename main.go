@@ -1,52 +1,18 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
-	"os"
 	"os/exec"
 	"time"
 )
 
-type Deploy struct {
-	Id   string
-	Note string
-	Port int // -1 for not running
-}
-
-type Label string
-
 const CAMUS_PORT = 9966
-
-/*
-
-1. build
-2. tag & push tag to git
-3.
-
-1. push binary (rsync)
-   - build
-   - tag & push tag to git
-   - rsync binary
-2. bring up binary (Run())
-3. set to live (Label())
-
-
-Application defines:
-- build command (and tell us where the dir is)
-- run command (with substitution for port)
-- status check endpoint
-
-*/
-
-func gitTag( /*args*/ ) {
-}
-func rsync( /*args*/ ) {
-}
 
 // TODO the rest
 
@@ -79,99 +45,41 @@ func serverMain() {
 }
 
 func clientMain() {
-	println("Parsing deploy config")
-	app := ApplicationFromConfig("deploy.json")
-	//println("Setting up channel")
-	//localPort := setupChannel("localhost")
-
-	localPort := CAMUS_PORT
-
-	serverAddr := fmt.Sprintf("localhost:%d", localPort)
-	fmt.Printf("dialing %s\n", serverAddr)
-	client, err := rpc.DialHTTP("tcp", serverAddr)
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
+	client := NewClientImpl()
 
 	cmd := flag.Arg(0)
 
-	build := func() {
-		cmd := exec.Command("sh", "-c", app.BuildCmd())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Run()
-	}
-
-	push := func(server string) string {
-		req := &NewDeployDirRequest{}
-		var reply NewDeployDirResponse
-
-		err := client.Call("RpcServer.NewDeployDir", req, &reply)
-		if err != nil {
-			log.Fatal("RPC:", err)
-		}
-
-		target := fmt.Sprintf("%s:%s", app.SshTarget(server), reply.Path)
-
-		println("RSYNC")
-		cmd := exec.Command("rsync", "-az",
-			fmt.Sprintf("%s/", app.BuildOutputDir()),
-			target)
-
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
-
-		println("RSYNC DONE")
-
-		if err != nil {
-			log.Fatalf("Failed to rsync: %s", err)
-		}
-
-		return reply.DeployId
-	}
-
-	deploy := func() string {
-		println("===== BUILDING =====")
-		build()
-
-		println("===== PUSHING =====")
-		return push("prod")
-
-	}
-
-	run := func(deployId string) {
-		req := &RunRequest{deployId}
-		var reply RunReply
-		err := client.Call("RpcServer.Run", req, &reply)
-		if err != nil {
-			log.Fatal("RPC:", err)
-		}
-
-	}
-
-	listDeploys := func() {
-		args := &ListDeploysRequest{}
-		var reply ListDeploysReply
-		err = client.Call("RpcServer.ListDeploys", args, &reply)
-
-		if err != nil {
-			log.Fatal("RPC:", err)
-		}
-
-		for _, deploy := range reply.Deploys {
-			fmt.Printf("%v\n", deploy)
-		}
-	}
+	var err error
 
 	if cmd == "deploy" {
-		deploy()
+		deployId, err := client.Push("prod")
+		if err == nil {
+			println("Deploy id ", deployId)
+		}
 	} else if cmd == "run" {
-		run(deploy())
+		deployId := flag.Arg(1)
+		if deployId == "" {
+			err = errors.New("Missing deploy id")
+		} else {
+			_, err = client.Run(flag.Arg(1))
+			if err == nil {
+				println("Ran")
+			}
+		}
+
 	} else if cmd == "list" {
-		listDeploys()
+		deploys, err := client.ListDeploys()
+		if err == nil {
+			for _, deploy := range deploys {
+				fmt.Printf("%v\n", deploy)
+			}
+		}
 	} else {
 		log.Fatalf("Unrecognized command: '%s'", cmd)
+	}
+
+	if err != nil {
+		log.Fatal("Error: ", err)
 	}
 
 }
