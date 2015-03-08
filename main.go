@@ -93,20 +93,6 @@ Application defines:
 
 */
 
-type Application struct {
-	BuildCmd string
-
-	BuildOutputDir string
-
-	// needs a %PORT% part for port subsitution
-	RunCmd string
-
-	StatusEndpoint string
-
-	// e.g. user@host  (no path)
-	SshTarget map[string]string
-}
-
 func gitTag( /*args*/ ) {
 }
 func rsync( /*args*/ ) {
@@ -120,6 +106,9 @@ var port = flag.String("port", ":1234", "port to serve on / connect to")
 
 func main() {
 	welcome()
+
+	app := ApplicationFromConfig("testapp/deploy.json")
+	fmt.Printf("Build cmd: '%s'\n", app.BuildCmd())
 
 	setupChannel("localhost")
 
