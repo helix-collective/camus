@@ -12,7 +12,7 @@ import (
 type Client interface {
 	Push(server string) (string, error)
 	Run(deployId string) (int, error)
-	List() ([]Deploy, error)
+	ListDeploys() ([]Deploy, error)
 }
 
 type ClientImpl struct {
@@ -20,10 +20,10 @@ type ClientImpl struct {
 	client *rpc.Client
 }
 
-func NewClientImpl() *ClientImpl {
+func NewClientImpl() (*ClientImpl, error) {
 	app, err := ApplicationFromConfig("deploy.json")
 	if err != nil {
-		log.Fatal("Failed to read deploy config: ", err)
+		return nil, fmt.Errorf("Client config load: %s", err)
 	}
 
 	localPort := CAMUS_PORT
@@ -32,13 +32,13 @@ func NewClientImpl() *ClientImpl {
 	fmt.Printf("dialing %s\n", serverAddr)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
 	if err != nil {
-		log.Fatal("dialing:", err)
+		return nil, fmt.Errorf("Dialing: %s", err)
 	}
 
 	return &ClientImpl{
 		app:    app,
 		client: client,
-	}
+	}, nil
 }
 
 func (c *ClientImpl) Build() (string, error) {

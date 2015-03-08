@@ -46,36 +46,42 @@ type Config struct {
 
 type ServerImpl struct {
 	root   string
-	config Config
+	config *Config
 }
 
-func NewServerImpl(root string) *ServerImpl {
+func readConfig(path string) (*Config, error) {
+	var config Config
+	if data, err := ioutil.ReadFile(path); err == nil {
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if config.Ports == nil {
+		config.Ports = make(map[int]string)
+	}
+	if config.Labels == nil {
+		config.Labels = make(map[string]string)
+	}
+	return &config, nil
+}
+
+func NewServerImpl(root string) (*ServerImpl, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		log.Fatal("Root path:", err)
 	}
-
-	cfgPath := path.Join(root, configPath)
-	data, err := ioutil.ReadFile(cfgPath)
+	config, err := readConfig(path.Join(root, configPath))
 	if err != nil {
-		log.Fatal("ReadFile:", err)
+		return nil, err
 	}
-	var config Config
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		log.Fatal("Unmarshal:", err)
+	if _, err = os.Open(path.Join(root, deployPath)); os.IsNotExist(err) {
+		os.MkdirAll(path.Join(root, deployPath), 0644)
 	}
-
-	if config.Ports == nil {
-		config.Ports = make(map[int]string)
-	}
-
-	return &ServerImpl{root, config}
+	return &ServerImpl{root, config}, nil
 }
 
 func (s *ServerImpl) NewDeployDir() NewDeployDirResponse {
-	// TODO(koz): Use a timestamp.
-
 	t := time.Now()
 	timestamp := fmt.Sprintf("%d-%02d-%02d-%02d-%02d-%02d",
 		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
@@ -102,7 +108,7 @@ func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
 }
 
 func (s *ServerImpl) findUnusedPort() (int, error) {
-	for i := 8001; i < 8100; i += 1 {
+	for i := 8001; i < 8100; i++ {
 
 		conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", i))
 		if err != nil {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -23,7 +22,6 @@ var port = flag.String("port", fmt.Sprintf(":%d", CAMUS_PORT),
 
 func main() {
 	welcome()
-
 	flag.Parse()
 	fmt.Printf("running in '%s' mode\n", *mode)
 	if *mode == "server" {
@@ -34,8 +32,12 @@ func main() {
 }
 
 func serverMain() {
-	s := &RpcServer{NewServerImpl(*serverRoot)}
-	rpc.Register(s)
+	server, err := NewServerImpl(*serverRoot)
+	if err != nil {
+		log.Fatal("NewServer:", err)
+	}
+	rpcServer := &RpcServer{server}
+	rpc.Register(rpcServer)
 	rpc.HandleHTTP()
 	l, err := net.Listen("tcp", *port)
 	if err != nil {
@@ -45,48 +47,16 @@ func serverMain() {
 }
 
 func clientMain() {
-	client := NewClientImpl()
-
-	cmd := flag.Arg(0)
-
-	var err error
-
-	if cmd == "deploy" {
-		deployId, err := client.Push("prod")
-		if err == nil {
-			println("Deploy id ", deployId)
-		}
-	} else if cmd == "run" {
-		deployId := flag.Arg(1)
-		if deployId == "" {
-			err = errors.New("Missing deploy id")
-		} else {
-			_, err = client.Run(flag.Arg(1))
-			if err == nil {
-				println("Ran")
-			}
-		}
-
-	} else if cmd == "list" {
-		deploys, err := client.ListDeploys()
-		if err == nil {
-			for _, deploy := range deploys {
-				fmt.Printf("%v\n", deploy)
-			}
-		}
-	} else {
-		log.Fatalf("Unrecognized command: '%s'", cmd)
-	}
-
+	client, err := NewClientImpl()
 	if err != nil {
-		log.Fatal("Error: ", err)
+		log.Fatal("NewClient:", err)
 	}
-
+	NewTerminalClient(flag.CommandLine, client).Run()
 }
 
 func welcome() {
 	println("--------")
-	println(QUOTES[int(time.Now().UnixNano())%len(QUOTES)])
+	println(QUOTES[time.Now().UnixNano()%int64(len(QUOTES))])
 	println("--------")
 }
 
