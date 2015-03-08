@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
+	"net/http"
+	"net/rpc"
 	"os/exec"
 	"path"
 	"time"
@@ -20,13 +23,9 @@ type Label string
 
 type Server interface {
 	ListLabels() ([]Label, error)
-
 	ListDeploys() ([]Deploy, error)
-
 	Run(deployId string) error
-
 	Stop(deployId string) error
-
 	Label(deployId string, label Label) error
 
 	// TODO Maintenance mode
@@ -54,6 +53,24 @@ func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
 }
 
 const CAMUS_PORT = 9966
+
+type RpcServer struct {
+	server *ServerImpl
+}
+
+type ListDeploysRequest struct{}
+type ListDeploysReply struct {
+	Deploys []Deploy
+}
+
+func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply) error {
+	deploys, err := s.server.ListDeploys()
+	if err != nil {
+		return err
+	}
+	reply.Deploys = deploys
+	return nil
+}
 
 /*
 
@@ -98,6 +115,8 @@ func rsync( /*args*/ ) {
 // TODO the rest
 
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
+var mode = flag.String("mode", "server", "'server' or 'client'")
+var port = flag.String("port", ":1234", "port to serve on / connect to")
 
 func main() {
 	welcome()
@@ -105,15 +124,45 @@ func main() {
 	setupChannel("localhost")
 
 	flag.Parse()
-	server := ServerImpl{
-		root: *serverRoot,
+	fmt.Printf("running in '%s' mode\n", *mode)
+	if *mode == "server" {
+		serverMain()
+	} else {
+		clientMain()
 	}
-	deploys, err := server.ListDeploys()
+}
+
+func serverMain() {
+	s := &RpcServer{
+		server: &ServerImpl{
+			root: *serverRoot,
+		},
+	}
+	rpc.Register(s)
+	rpc.HandleHTTP()
+	l, err := net.Listen("tcp", *port)
 	if err != nil {
-		log.Fatalf("Failed to list deploys: %s", err)
+		log.Fatal("failed to listen:", err)
+	}
+	http.Serve(l, nil)
+}
+
+func clientMain() {
+	serverAddr := "localhost" + *port
+	fmt.Printf("dialing %s\n", serverAddr)
+	client, err := rpc.DialHTTP("tcp", serverAddr)
+	if err != nil {
+		log.Fatal("dialing:", err)
+	}
+	args := &ListDeploysRequest{}
+	var reply ListDeploysReply
+	err = client.Call("RpcServer.ListDeploys", args, &reply)
+
+	if err != nil {
+		log.Fatal("RPC:", err)
 	}
 
-	for _, deploy := range deploys {
+	for _, deploy := range reply.Deploys {
 		fmt.Printf("%v\n", deploy)
 	}
 
