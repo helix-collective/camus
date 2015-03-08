@@ -15,7 +15,7 @@ type Application interface {
 
 	RunCmd(port int) string
 
-	StatusEndpoint() string
+	HealthEndpoint() string
 
 	// e.g. prod -> user@host  (no path)
 	SshTarget(server string) string
@@ -33,7 +33,7 @@ type ApplicationDef struct {
 	// needs a %PORT% part for port subsitution
 	RunCmd string
 
-	StatusEndpoint string
+	HealthEndpoint string
 
 	// e.g. user@host  (no path)
 	SshTargets map[string]string
@@ -65,6 +65,6 @@ func (a *AppImpl) BuildCmd() string {
 func (a *AppImpl) BuildOutputDir() string {
 	return a.def.BuildOutputDir
 }
-func (a *AppImpl) StatusEndpoint() string {
-	return a.def.StatusEndpoint
+func (a *AppImpl) HealthEndpoint() string {
+	return a.def.HealthEndpoint
 }

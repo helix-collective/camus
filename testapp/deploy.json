@@ -2,7 +2,7 @@
   "BuildCmd": "./build.sh",
   "BuildOutputDir": "./build",
   "RunCmd": "node app.js %PORT%",
-  "StatusEndpoint": "/status",
+  "HealthEndpoint": "/status",
   "SshTargets": {
     "prod": "localhost"
   }

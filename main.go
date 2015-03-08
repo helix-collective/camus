@@ -102,10 +102,14 @@ func clientMain() {
 		cmd.Run()
 	}
 
-	push := func(server string) {
+	push := func(server string) string {
 		req := &NewDeployDirRequest{}
 		var reply NewDeployDirResponse
-		client.Call("RpcServer.NewDeployDir", req, &reply)
+
+		err := client.Call("RpcServer.NewDeployDir", req, &reply)
+		if err != nil {
+			log.Fatal("RPC:", err)
+		}
 
 		target := fmt.Sprintf("%s:%s", app.SshTarget(server), reply.Path)
 
@@ -116,21 +120,33 @@ func clientMain() {
 
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		err = cmd.Run()
 
 		println("RSYNC DONE")
 
 		if err != nil {
 			log.Fatalf("Failed to rsync: %s", err)
 		}
+
+		return reply.DeployId
 	}
 
-	deploy := func() {
+	deploy := func() string {
 		println("===== BUILDING =====")
 		build()
 
 		println("===== PUSHING =====")
-		push("prod")
+		return push("prod")
+
+	}
+
+	run := func(deployId string) {
+		req := &RunRequest{deployId}
+		var reply RunReply
+		err := client.Call("RpcServer.Run", req, &reply)
+		if err != nil {
+			log.Fatal("RPC:", err)
+		}
 
 	}
 
@@ -150,6 +166,8 @@ func clientMain() {
 
 	if cmd == "deploy" {
 		deploy()
+	} else if cmd == "run" {
+		run(deploy())
 	} else if cmd == "list" {
 		listDeploys()
 	} else {
