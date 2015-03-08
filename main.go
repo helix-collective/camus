@@ -1,6 +1,10 @@
 package main
 
+import "flag"
 import "fmt"
+import "io/ioutil"
+import "log"
+import "path"
 
 type Deploy struct {
 	Id   string
@@ -22,6 +26,27 @@ type Server interface {
 	Label(deployId string, label Label) error
 
 	// TODO Maintenance mode
+}
+
+const deployPath = "deploys"
+
+type ServerImpl struct {
+	root string
+}
+
+func (s *ServerImpl) ListDeploys() ([]Deploy, error) {
+	infos, err := ioutil.ReadDir(path.Join(s.root, deployPath))
+	if err != nil {
+		return nil, err
+	}
+	var result []Deploy
+	for _, info := range infos {
+		result = append(result, Deploy{
+			Id:   info.Name(),
+			Port: -1,
+		})
+	}
+	return result, nil
 }
 
 /*
@@ -66,6 +91,19 @@ func rsync( /*args*/ ) {
 
 // TODO the rest
 
+var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
+
 func main() {
-	fmt.Println("To be")
+	flag.Parse()
+	server := ServerImpl{
+		root: *serverRoot,
+	}
+	deploys, err := server.ListDeploys()
+	if err != nil {
+		log.Fatalf("Failed to list deploys: %s", err)
+	}
+
+	for _, deploy := range deploys {
+		fmt.Printf("%v\n", deploy)
+	}
 }
