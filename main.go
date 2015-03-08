@@ -100,7 +100,7 @@ func rsync( /*args*/ ) {
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
 
 func main() {
-	fmt.Println("To be")
+	welcome()
 
 	setupChannel("localhost")
 
@@ -117,6 +117,12 @@ func main() {
 		fmt.Printf("%v\n", deploy)
 	}
 
+}
+
+func welcome() {
+	println("--------")
+	println(QUOTES[int(time.Now().UnixNano())%len(QUOTES)])
+	println("--------")
 }
 
 func setupChannel(login string) func() {
