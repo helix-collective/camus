@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+	"os"
 	"os/exec"
 	"time"
 )
@@ -50,16 +51,12 @@ func rsync( /*args*/ ) {
 // TODO the rest
 
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
-var mode = flag.String("mode", "server", "'server' or 'client'")
-var port = flag.String("port", ":1234", "port to serve on / connect to")
+var mode = flag.String("mode", "client", "'server' or 'client'")
+var port = flag.String("port", fmt.Sprintf(":%d", CAMUS_PORT),
+	"port to serve on / connect to")
 
 func main() {
 	welcome()
-
-	app := ApplicationFromConfig("testapp/deploy.json")
-	fmt.Printf("Build cmd: '%s'\n", app.BuildCmd())
-
-	setupChannel("localhost")
 
 	flag.Parse()
 	fmt.Printf("running in '%s' mode\n", *mode)
@@ -82,22 +79,80 @@ func serverMain() {
 }
 
 func clientMain() {
-	serverAddr := "localhost" + *port
+	println("Parsing deploy config")
+	app := ApplicationFromConfig("deploy.json")
+	//println("Setting up channel")
+	//localPort := setupChannel("localhost")
+
+	localPort := CAMUS_PORT
+
+	serverAddr := fmt.Sprintf("localhost:%d", localPort)
 	fmt.Printf("dialing %s\n", serverAddr)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
-	args := &ListDeploysRequest{}
-	var reply ListDeploysReply
-	err = client.Call("RpcServer.ListDeploys", args, &reply)
 
-	if err != nil {
-		log.Fatal("RPC:", err)
+	cmd := flag.Arg(0)
+
+	build := func() {
+		cmd := exec.Command("sh", "-c", app.BuildCmd())
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
 	}
 
-	for _, deploy := range reply.Deploys {
-		fmt.Printf("%v\n", deploy)
+	push := func(server string) {
+		//req := &NewDeployDirRequest{}
+		//var reply NewDeployDirReply
+		//client.Call("RpcServer.NewDeployDir", req, &reply)
+
+		//target := fmt.Sprintf("%s:%s", app.SshTarget(server), reply.Path)
+
+		target := "/Users/dan/code/OpenSource/camus/testDeploys/deploys/1235"
+
+		cmd := exec.Command("rsync", "-az",
+			fmt.Sprintf("%s/", app.BuildOutputDir()),
+			target)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+
+		if err != nil {
+			log.Fatalf("Failed to rsync: %s", err)
+		}
+	}
+
+	deploy := func() {
+		println("===== BUILDING =====")
+		build()
+
+		println("===== PUSHING =====")
+		push("prod")
+
+	}
+
+	listDeploys := func() {
+		args := &ListDeploysRequest{}
+		var reply ListDeploysReply
+		err = client.Call("RpcServer.ListDeploys", args, &reply)
+
+		if err != nil {
+			log.Fatal("RPC:", err)
+		}
+
+		for _, deploy := range reply.Deploys {
+			fmt.Printf("%v\n", deploy)
+		}
+	}
+
+	if cmd == "deploy" {
+		deploy()
+	} else if cmd == "list" {
+		listDeploys()
+	} else {
+		log.Fatalf("Unrecognized command: '%s'", cmd)
 	}
 
 }
@@ -108,19 +163,18 @@ func welcome() {
 	println("--------")
 }
 
-func setupChannel(login string) func() {
+func setupChannel(login string) int {
 	port := CAMUS_PORT
-	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", port, port))
-	pipe, err := cmd.StdinPipe()
+	localPort := port + 1
+	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", localPort, port))
+	_, err := cmd.StdinPipe()
 	err = cmd.Start()
 
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
 
-	return func() {
-		pipe.Close()
-	}
+	return localPort
 }
 
 func sleepSeconds(seconds int) {
