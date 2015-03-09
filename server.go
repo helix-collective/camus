@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -40,7 +41,7 @@ const (
 )
 
 type Config struct {
-	Ports  map[int]string
+	Ports  map[string]string
 	Labels map[string]string
 }
 
@@ -58,7 +59,7 @@ func readConfig(path string) (*Config, error) {
 		}
 	}
 	if config.Ports == nil {
-		config.Ports = make(map[int]string)
+		config.Ports = make(map[string]string)
 	}
 	if config.Labels == nil {
 		config.Labels = make(map[string]string)
@@ -127,7 +128,7 @@ func (s *ServerImpl) findUnusedPort() (int, error) {
 }
 
 func (s *ServerImpl) writeConfig() error {
-	data, err := json.Marshal(s.config)
+	data, err := json.MarshalIndent(s.config, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -148,8 +149,11 @@ func (s *ServerImpl) Run(deployId string) error {
 		return err
 	}
 
-	s.config.Ports[port] = deployId
-	s.writeConfig()
+	s.config.Ports[strconv.Itoa(port)] = deployId
+	err = s.writeConfig()
+	if err != nil {
+		return fmt.Errorf("write config: %s", err)
+	}
 	println(deployPath)
 	println(app.RunCmd(port))
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
