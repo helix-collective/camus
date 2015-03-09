@@ -51,7 +51,10 @@ func clientMain() {
 	if err != nil {
 		log.Fatal("NewClient:", err)
 	}
-	NewTerminalClient(flag.CommandLine, client).Run()
+	err = NewTerminalClient(flag.CommandLine, client).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func welcome() {
