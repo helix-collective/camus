@@ -12,7 +12,7 @@ import (
 type Client interface {
 	Push(server string) (string, error)
 	Run(deployId string) (int, error)
-	ListDeploys() ([]Deploy, error)
+	ListDeploys() ([]*Deploy, error)
 }
 
 type ClientImpl struct {
@@ -109,7 +109,7 @@ func (c *ClientImpl) Run(deployId string) (int, error) {
 	return -1, nil
 }
 
-func (c *ClientImpl) ListDeploys() ([]Deploy, error) {
+func (c *ClientImpl) ListDeploys() ([]*Deploy, error) {
 	args := &ListDeploysRequest{}
 	var reply ListDeploysReply
 	if err := c.client.Call("RpcServer.ListDeploys", args, &reply); err != nil {

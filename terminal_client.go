@@ -64,7 +64,20 @@ func (c *TerminalClient) listCmd() error {
 	}
 	fmt.Printf("Deploys:\n")
 	for _, deploy := range deploys {
-		fmt.Printf("%v\n", deploy)
+		fmt.Printf("%-25s ", deploy.Id)
+		fmt.Printf(yn(deploy.Tracked))
+		fmt.Printf(" %4d ", deploy.Port)
+		fmt.Printf(" %4d ", deploy.Health)
+		fmt.Printf(" %25s ", fmt.Sprintf("%v", deploy.Errors))
+		println()
 	}
 	return nil
+}
+
+func yn(b bool) string {
+	if b {
+		return "y"
+	} else {
+		return "n"
+	}
 }

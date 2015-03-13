@@ -8,7 +8,7 @@ type RpcServer struct {
 
 type ListDeploysRequest struct{}
 type ListDeploysReply struct {
-	Deploys []Deploy
+	Deploys []*Deploy
 }
 
 func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply) error {
