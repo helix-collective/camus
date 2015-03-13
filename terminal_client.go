@@ -63,13 +63,26 @@ func (c *TerminalClient) listCmd() error {
 		return err
 	}
 	fmt.Printf("Deploys:\n")
+
+	tbl := TableDef{
+		Columns: []ColumnDef{
+			ColumnDef{"id", 25},
+			ColumnDef{"tracked", 7},
+			ColumnDef{"port", 4},
+			ColumnDef{"st", 3},
+			ColumnDef{"messages", 50},
+		},
+	}
+	tbl.PrintHeader()
+
 	for _, deploy := range deploys {
-		fmt.Printf("%-25s ", deploy.Id)
-		fmt.Printf(yn(deploy.Tracked))
-		fmt.Printf(" %4d ", deploy.Port)
-		fmt.Printf(" %4d ", deploy.Health)
-		fmt.Printf(" %25s ", fmt.Sprintf("%v", deploy.Errors))
-		println()
+		tbl.PrintRow(
+			deploy.Id,
+			yn(deploy.Tracked),
+			deploy.Port,
+			deploy.Health,
+			fmt.Sprintf("%v", deploy.Errors),
+		)
 	}
 	return nil
 }
