@@ -32,8 +32,10 @@ type Deploy struct {
 	Port int
 
 	// http status code,
-	// 0 for no connection attempted,
-	// -1 for connection failed or timeout
+	// 0 for nothing running on port (or no port specified)
+	// negative timeout or something else wrong with the deploy
+	//
+	// if 0, and port is specified, then it's safe to run the binary
 	Health int
 
 	Errors []string
@@ -65,12 +67,13 @@ type Config struct {
 }
 
 type ServerImpl struct {
-	root        string
-	config      *Config
-	startPort   int
-	endPort     int
-	client      *http.Client
-	deploysPath string
+	root         string
+	config       *Config
+	startPort    int
+	endPort      int
+	client       *http.Client
+	deploysPath  string
+	enforceDelay time.Duration
 }
 
 func readConfig(path string) (*Config, error) {
@@ -109,14 +112,22 @@ func NewServerImpl(root string) (*ServerImpl, error) {
 		},
 		Timeout: MAX_HEALTH_CHECK_TIME,
 	}
-	return &ServerImpl{
-		root:        root,
-		config:      config,
-		startPort:   8001,
-		endPort:     8099,
-		client:      client,
-		deploysPath: deploysPath,
-	}, nil
+
+	server := &ServerImpl{
+		root:         root,
+		config:       config,
+		startPort:    8001,
+		endPort:      8099,
+		client:       client,
+		deploysPath:  deploysPath,
+		enforceDelay: time.Duration(5) * time.Second,
+	}
+
+	go func() {
+		server.EnforceLoop()
+	}()
+
+	return server, nil
 }
 
 func (s *ServerImpl) NewDeployDir() NewDeployDirResponse {
@@ -135,6 +146,44 @@ func (s *ServerImpl) deployDir(deployId string) string {
 }
 func (s *ServerImpl) deployConfigFile(deployId string) string {
 	return path.Join(s.deployDir(deployId), deployConfigFileName)
+}
+
+func (s *ServerImpl) EnforceLoop() {
+	for {
+		s.Enforce()
+		time.Sleep(s.enforceDelay)
+	}
+}
+
+func (s *ServerImpl) Enforce() error {
+
+	deploys, err := s.ListDeploys()
+	if err != nil {
+		return err
+	}
+
+	for _, deploy := range deploys {
+		if deploy.Port > 0 && deploy.Health == 0 {
+			port := deploy.Port
+
+			app, cmd, err := s.commandForDeploy(deploy.Id, port)
+			if err != nil {
+				continue
+			}
+
+			if err := cmd.Start(); err != nil {
+				continue
+			}
+
+			if err := s.waitForAppToStart(port, app); err != nil {
+				continue
+			}
+
+			log.Printf("Started %d", port)
+		}
+	}
+
+	return nil
 }
 
 func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
@@ -210,6 +259,8 @@ func (s *ServerImpl) scanPorts(deploys []*Deploy) []*Deploy {
 
 	for port := s.startPort; port <= s.endPort; port++ {
 		if portFree(port) {
+			// This is important, leave the Health as 0,
+			// so our background task knows it's safe to run
 			continue
 		}
 
@@ -243,9 +294,9 @@ func (s *ServerImpl) checkHealth(deploy *Deploy) {
 	app, err := ApplicationFromConfig(s.deployConfigFile(deploy.Id))
 	if err != nil {
 		deploy.Errors = append(deploy.Errors,
-			fmt.Sprintf("!! missing deploy config !! %s", err))
+			fmt.Sprintf("Missing deploy config (%s)", err))
 		println("Missing config")
-		deploy.Health = -4
+		deploy.Health = -2
 		return
 	}
 
