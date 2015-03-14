@@ -51,11 +51,11 @@ func (c *TerminalClient) runCmd() error {
 	if deployId == "" {
 		return errors.New("Missing deploy id")
 	}
-	_, err := c.client.Run(deployId)
+	port, err := c.client.Run(deployId)
 	if err != nil {
 		return err
 	}
-	println("Ran")
+	println(port)
 	return nil
 }
 

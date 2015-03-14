@@ -106,8 +106,7 @@ func (c *ClientImpl) Run(deployId string) (int, error) {
 		return -1, err
 	}
 
-	// TODO return actual port?
-	return -1, nil
+	return reply.Port, nil
 }
 
 func (c *ClientImpl) SetMainByPort(port int) error {

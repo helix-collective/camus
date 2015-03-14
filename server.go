@@ -281,13 +281,19 @@ func findDeployById(id string, deploys []*Deploy) *Deploy {
 func (s *ServerImpl) findUnusedPort() (int, error) {
 	for i := s.startPort; i <= s.endPort; i++ {
 
-		if portFree(i) {
+		if !s.portConfigured(i) && portFree(i) {
 			return i, nil
 		}
 
 	}
 
 	return -1, errors.New("Could not find free port")
+}
+
+func (s *ServerImpl) portConfigured(port int) bool {
+	_, taken := s.config.Ports[strconv.Itoa(port)]
+
+	return taken
 }
 
 func portFree(port int) bool {
@@ -317,33 +323,50 @@ func (s *ServerImpl) SetMainByPort(port int) error {
 	return s.reloadHaproxy(port)
 }
 
-func (s *ServerImpl) Run(deployIdToRun string) error {
+func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 	for portStr, deployId := range s.config.Ports {
 		if deployIdToRun == deployId {
-			return fmt.Errorf("Already configured for port %s", portStr)
+			return -1, fmt.Errorf("Already configured for port %s", portStr)
 		}
 	}
 
 	port, err := s.findUnusedPort()
 	if err != nil {
-		return err
+		return -1, err
 	}
-	log.Println("Found port ", port)
 
-	deployPath := s.deployDir(deployIdToRun)
-
-	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
+	app, cmd, err := s.commandForDeploy(deployIdToRun, port)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	s.config.Ports[strconv.Itoa(port)] = deployIdToRun
 	err = s.writeConfig()
 	if err != nil {
-		return fmt.Errorf("write config: %s", err)
+		return -1, fmt.Errorf("write config: %s", err)
 	}
-	println(deployPath)
-	println(app.RunCmd(port))
+
+	err = cmd.Start()
+	if err != nil {
+		return -1, err
+	}
+
+	if err := s.waitForAppToStart(port, app); err != nil {
+		return -1, err
+	}
+
+	return port, nil
+}
+
+func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Application, *exec.Cmd, error) {
+
+	deployPath := s.deployDir(deployIdToRun)
+
+	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
+	if err != nil {
+		return nil, nil, err
+	}
+
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
 
 	// process working dir
@@ -351,12 +374,7 @@ func (s *ServerImpl) Run(deployIdToRun string) error {
 
 	detachProc(cmd)
 
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-
-	return s.waitForAppToStart(port, app)
+	return app, cmd, nil
 }
 
 func detachProc(cmd *exec.Cmd) {

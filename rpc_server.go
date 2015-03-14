@@ -39,10 +39,17 @@ type RunRequest struct {
 	DeployId string
 }
 type RunReply struct {
+	Port int
 }
 
 func (s *RpcServer) Run(arg RunRequest, reply *RunReply) error {
-	return s.server.Run(arg.DeployId)
+	port, err := s.server.Run(arg.DeployId)
+	if err != nil {
+		return err
+	}
+
+	reply.Port = port
+	return nil
 }
 
 ////////////////
