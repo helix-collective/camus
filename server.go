@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -54,11 +55,13 @@ const (
 	deploysDirName       = "deploys"
 	deployConfigFileName = "deploy.json"
 	serverConfigFileName = "config.json"
+	haproxyConfig        = "haproxy.cfg"
+	haproxyPid           = "haproxy.pid"
 )
 
 type Config struct {
 	Ports  map[string]string
-	Labels map[string]string
+	Labels map[string]string // todo.
 }
 
 type ServerImpl struct {
@@ -310,6 +313,10 @@ func (s *ServerImpl) writeConfig() error {
 		data, os.FileMode(0644))
 }
 
+func (s *ServerImpl) SetMainByPort(port int) error {
+	return s.reloadHaproxy(port)
+}
+
 func (s *ServerImpl) Run(deployId string) error {
 	port, err := s.findUnusedPort()
 	if err != nil {
@@ -336,10 +343,7 @@ func (s *ServerImpl) Run(deployId string) error {
 	// process working dir
 	cmd.Dir = deployPath
 
-	// give it its own process group, so it doesn't die
-	// when the manager process exits for whatever reason
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-	cmd.SysProcAttr.Setpgid = true
+	detachProc(cmd)
 
 	err = cmd.Start()
 	if err != nil {
@@ -347,6 +351,13 @@ func (s *ServerImpl) Run(deployId string) error {
 	}
 
 	return s.waitForAppToStart(port, app)
+}
+
+func detachProc(cmd *exec.Cmd) {
+	// give it its own process group, so it doesn't die
+	// when the manager process exits for whatever reason
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Setpgid = true
 }
 
 var MAX_STARTUP_TIME = time.Duration(10) * time.Second
@@ -388,4 +399,65 @@ func (s *ServerImpl) testApp(port int, app Application) (int, error) {
 	}
 
 	return -1, err
+}
+
+func (s *ServerImpl) reloadHaproxy(port int) error {
+	if port < s.startPort {
+		return fmt.Errorf("Invalid prod port %d", port)
+	}
+	cfg := HaproxyConfig(s.endPort, s.endPort-1, port)
+
+	cfgFile := path.Join(s.root, haproxyConfig)
+	pidFile := path.Join(s.root, haproxyPid)
+
+	if err := ioutil.WriteFile(cfgFile, []byte(cfg), os.FileMode(0644)); err != nil {
+		return err
+	}
+
+	runningPid, err := readPid(pidFile)
+	if err != nil {
+		return err
+	}
+
+	cmd := haproxyCmd(cfgFile, pidFile, runningPid)
+
+	return cmd.Start()
+}
+
+func haproxyCmd(cfgFile string, pidFile string, runningPid int) *exec.Cmd {
+	log.Println("PID ", runningPid, " ", pidFile)
+	var cmd *exec.Cmd
+	if runningPid > 0 {
+		cmd = exec.Command(
+			"/usr/local/sbin/haproxy",
+			"-f", cfgFile,
+			"-p", pidFile,
+			"-sf", strconv.Itoa(runningPid))
+	} else {
+		cmd = exec.Command(
+			"/usr/local/sbin/haproxy",
+			"-f", cfgFile,
+			"-p", pidFile)
+	}
+
+	detachProc(cmd)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd
+}
+
+func readPid(pidFile string) (int, error) {
+	if data, err := ioutil.ReadFile(pidFile); err == nil {
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+
+		if err != nil {
+			return -1, fmt.Errorf("Invalid pid data, %s", err)
+		}
+
+		return pid, nil
+	} else {
+		return -1, nil // OK - no current pid
+	}
+
 }

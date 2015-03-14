@@ -12,6 +12,7 @@ import (
 type Client interface {
 	Push(server string) (string, error)
 	Run(deployId string) (int, error)
+	SetMainByPort(port int) error
 	ListDeploys() ([]*Deploy, error)
 }
 
@@ -107,6 +108,17 @@ func (c *ClientImpl) Run(deployId string) (int, error) {
 
 	// TODO return actual port?
 	return -1, nil
+}
+
+func (c *ClientImpl) SetMainByPort(port int) error {
+	req := &SetMainPortRequest{port}
+	var reply SetMainPortReply
+	err := c.client.Call("RpcServer.SetMainByPort", req, &reply)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *ClientImpl) ListDeploys() ([]*Deploy, error) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strconv"
 )
 
 type TerminalClient struct {
@@ -22,6 +23,7 @@ func (c *TerminalClient) Run() error {
 		"deploy": c.deployCmd,
 		"run":    c.runCmd,
 		"list":   c.listCmd,
+		"set":    c.setCmd,
 	}
 	cmdName := c.flags.Arg(0)
 	cmd, ok := commands[cmdName]
@@ -54,6 +56,21 @@ func (c *TerminalClient) runCmd() error {
 		return err
 	}
 	println("Ran")
+	return nil
+}
+
+func (c *TerminalClient) setCmd() error {
+	portStr := c.flags.Arg(1)
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port <= 0 {
+		return errors.New("Invalid port")
+	}
+
+	err = c.client.SetMainByPort(port)
+	if err != nil {
+		return err
+	}
+	println("Port set")
 	return nil
 }
 

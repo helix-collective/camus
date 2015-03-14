@@ -22,6 +22,19 @@ func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply)
 
 ////////////////
 
+type SetMainPortRequest struct {
+	Port int
+}
+type SetMainPortReply struct {
+}
+
+func (s *RpcServer) SetMainByPort(arg SetMainPortRequest,
+	reply *RunReply) error {
+	return s.server.SetMainByPort(arg.Port)
+}
+
+////////////////
+
 type RunRequest struct {
 	DeployId string
 }
