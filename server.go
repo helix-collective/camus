@@ -317,21 +317,27 @@ func (s *ServerImpl) SetMainByPort(port int) error {
 	return s.reloadHaproxy(port)
 }
 
-func (s *ServerImpl) Run(deployId string) error {
+func (s *ServerImpl) Run(deployIdToRun string) error {
+	for portStr, deployId := range s.config.Ports {
+		if deployIdToRun == deployId {
+			return fmt.Errorf("Already configured for port %s", portStr)
+		}
+	}
+
 	port, err := s.findUnusedPort()
 	if err != nil {
 		return err
 	}
 	log.Println("Found port ", port)
 
-	deployPath := s.deployDir(deployId)
+	deployPath := s.deployDir(deployIdToRun)
 
 	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
 	if err != nil {
 		return err
 	}
 
-	s.config.Ports[strconv.Itoa(port)] = deployId
+	s.config.Ports[strconv.Itoa(port)] = deployIdToRun
 	err = s.writeConfig()
 	if err != nil {
 		return fmt.Errorf("write config: %s", err)
