@@ -123,9 +123,7 @@ func NewServerImpl(root string) (*ServerImpl, error) {
 		enforceDelay: time.Duration(5) * time.Second,
 	}
 
-	go func() {
-		server.EnforceLoop()
-	}()
+	go server.EnforceLoop()
 
 	return server, nil
 }
@@ -267,7 +265,7 @@ func (s *ServerImpl) scanPorts(deploys []*Deploy) []*Deploy {
 		dep := findDeployByPort(port, result)
 		if dep == nil {
 			result = append(result, &Deploy{
-				Id:      fmt.Sprintf("(unkonwn-%d)", port),
+				Id:      fmt.Sprintf("(unknown-%d)", port),
 				Port:    port,
 				Tracked: false,
 				Health:  0,

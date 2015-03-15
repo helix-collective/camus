@@ -63,25 +63,22 @@ func (c *ClientImpl) Push(server string) (string, error) {
 		return "", err
 	}
 
-	sshTarget := c.app.SshTarget(server)
-
-	finalTarget := reply.Path
-	latestDir := path.Join(finalTarget, "/../../_latest")
-
-	latestTarget := fmt.Sprintf("%s:%s", sshTarget, latestDir)
-
 	c.info("uploading package...")
 
-	if err := runVisibleCmd("rsync", "-azv", "--delete",
-		c.app.BuildOutputDir()+"/",
-		latestTarget); err != nil {
+	localDeployDir := c.app.BuildOutputDir()
+	remoteDeployDir := reply.Path
+	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
+	sshTarget := c.app.SshTarget(server)
 
+	if err := runVisibleCmd("rsync", "-azv", "--delete",
+		localDeployDir+"/",
+		sshTarget+":"+remoteLatestDir); err != nil {
 		return "", err
 	}
 
 	if err := runVisibleCmd("ssh", sshTarget,
 		"rsync", "-a", "--delete",
-		latestDir+"/", finalTarget); err != nil {
+		remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return "", err
 	}
 
