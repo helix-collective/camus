@@ -104,7 +104,7 @@ func NewServerImpl(root string) (*ServerImpl, error) {
 	}
 	deploysPath := path.Join(root, deploysDirName)
 	if _, err = os.Open(deploysPath); os.IsNotExist(err) {
-		os.MkdirAll(deploysPath, 0644)
+		os.MkdirAll(deploysPath, 0744)
 	}
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -408,29 +408,21 @@ func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 }
 
 func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Application, *exec.Cmd, error) {
-
 	deployPath := s.deployDir(deployIdToRun)
-
 	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
 	if err != nil {
 		return nil, nil, err
 	}
-
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
-
-	// process working dir
 	cmd.Dir = deployPath
-
 	detachProc(cmd)
-
 	return app, cmd, nil
 }
 
 func detachProc(cmd *exec.Cmd) {
 	// give it its own process group, so it doesn't die
 	// when the manager process exits for whatever reason
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-	cmd.SysProcAttr.Setpgid = true
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
 var MAX_STARTUP_TIME = time.Duration(10) * time.Second
@@ -438,7 +430,6 @@ var MAX_HEALTH_CHECK_TIME = time.Duration(2) * time.Second
 var STARTUP_HEALTH_CHECK_INTERVAL = time.Duration(100) * time.Millisecond
 
 func (s *ServerImpl) waitForAppToStart(port int, app Application) error {
-
 	end := time.Now().Add(MAX_STARTUP_TIME)
 	for {
 		log.Print(".")
@@ -523,11 +514,9 @@ func haproxyCmd(cfgFile string, pidFile string, runningPid int) *exec.Cmd {
 func readPid(pidFile string) (int, error) {
 	if data, err := ioutil.ReadFile(pidFile); err == nil {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-
 		if err != nil {
 			return -1, fmt.Errorf("Invalid pid data, %s", err)
 		}
-
 		return pid, nil
 	} else {
 		return -1, nil // OK - no current pid

@@ -24,13 +24,12 @@ type ClientImpl struct {
 func NewClientImpl() (*ClientImpl, error) {
 	app, err := ApplicationFromConfig("deploy.json")
 	if err != nil {
-		return nil, fmt.Errorf("Client config load: %s", err)
+		panic("Failed to read deploy.json, are sure you're in an app directory?")
 	}
 
 	localPort := CAMUS_PORT
 
 	serverAddr := fmt.Sprintf("localhost:%d", localPort)
-	fmt.Printf("dialing %s\n", serverAddr)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
 	if err != nil {
 		return nil, fmt.Errorf("Dialing: %s", err)
@@ -70,6 +69,18 @@ func (c *ClientImpl) Push(server string) (string, error) {
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
 	sshTarget := c.app.SshTarget(server)
 
+	// TODO(koz): Delete this code when I fix ssh on my computer.
+	/*
+		if true {
+			err := runVisibleCmd("rsync", "-azv", "--delete",
+				localDeployDir+"/",
+				remoteDeployDir)
+			if err != nil {
+				return "", err
+			}
+			return reply.DeployId, nil
+		}
+	*/
 	if err := runVisibleCmd("rsync", "-azv", "--delete",
 		localDeployDir+"/",
 		sshTarget+":"+remoteLatestDir); err != nil {

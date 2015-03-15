@@ -8,31 +8,42 @@ import (
 )
 
 type TerminalClient struct {
-	flags  *flag.FlagSet
-	client Client
+	flags    *flag.FlagSet
+	client   Client
+	commands map[string]Command
 }
 
 type Command func() error
 
 func NewTerminalClient(flags *flag.FlagSet, client Client) *TerminalClient {
-	return &TerminalClient{flags, client}
+	c := &TerminalClient{flags, client, make(map[string]Command)}
+	c.commands["deploy"] = c.deployCmd
+	c.commands["run"] = c.runCmd
+	c.commands["list"] = c.listCmd
+	c.commands["set"] = c.setCmd
+	c.commands["help"] = c.helpCmd
+	return c
 }
 
 func (c *TerminalClient) Run() error {
-	commands := map[string]Command{
-		"deploy": c.deployCmd,
-		"run":    c.runCmd,
-		"list":   c.listCmd,
-		"set":    c.setCmd,
-	}
 	cmdName := c.flags.Arg(0)
-	cmd, ok := commands[cmdName]
-	if !ok {
-		return fmt.Errorf("Unknown command '%s'", cmdName)
+	if cmdName == "" {
+		cmdName = "help"
 	}
-	err := cmd()
-	if err != nil {
-		return fmt.Errorf("Command '%s' failed: %s", cmdName, err)
+	cmd, ok := c.commands[cmdName]
+	if !ok {
+		fmt.Printf("Unknown command '%s'\n", cmdName)
+		c.helpCmd()
+		return nil
+	}
+	return cmd()
+}
+
+func (c *TerminalClient) helpCmd() error {
+	fmt.Printf("usage: camus -mode [server|client] command args...\n\n")
+	fmt.Printf("Available commands\n")
+	for name, _ := range c.commands {
+		fmt.Printf("  %s\n", name)
 	}
 	return nil
 }

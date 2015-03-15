@@ -23,7 +23,6 @@ var port = flag.String("port", fmt.Sprintf(":%d", CAMUS_PORT),
 func main() {
 	welcome()
 	flag.Parse()
-	fmt.Printf("running in '%s' mode\n", *mode)
 	if *mode == "server" {
 		serverMain()
 	} else {
@@ -43,6 +42,7 @@ func serverMain() {
 	if err != nil {
 		log.Fatal("failed to listen:", err)
 	}
+	fmt.Printf("Listening on %s\n", *port)
 	http.Serve(l, nil)
 }
 
@@ -58,9 +58,8 @@ func clientMain() {
 }
 
 func welcome() {
-	println("--------")
 	println(QUOTES[time.Now().UnixNano()%int64(len(QUOTES))])
-	println("--------")
+	println("  -- Camus")
 }
 
 func setupChannel(login string) int {
