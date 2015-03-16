@@ -10,6 +10,7 @@ import (
 )
 
 type Client interface {
+	Build() (string, error)
 	Push(server string) (string, error)
 	Run(deployId string) (int, error)
 	SetMainByPort(port int) error

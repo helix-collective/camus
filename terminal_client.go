@@ -49,6 +49,11 @@ func (c *TerminalClient) helpCmd() error {
 }
 
 func (c *TerminalClient) deployCmd() error {
+	_, err := c.client.Build()
+	if err != nil {
+		return err
+	}
+
 	deployId, err := c.client.Push("prod")
 	if err != nil {
 		return err
