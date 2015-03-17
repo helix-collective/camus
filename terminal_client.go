@@ -41,7 +41,7 @@ func (c *TerminalClient) Run() error {
 }
 
 func (c *TerminalClient) helpCmd() error {
-	fmt.Printf("usage: camus -mode [server|client] command args...\n\n")
+	fmt.Printf("usage: camus [-server] command args...\n\n")
 	fmt.Printf("Available commands\n")
 	cmdNames := []string{}
 	for name, _ := range c.commands {
