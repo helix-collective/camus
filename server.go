@@ -313,19 +313,15 @@ func (s *ServerImpl) checkHealth(deploy *Deploy) {
 
 func (s *ServerImpl) findUnusedPort() (int, error) {
 	for i := s.startPort; i <= s.endPort; i++ {
-
 		if !s.portConfigured(i) && portFree(i) {
 			return i, nil
 		}
-
 	}
-
 	return -1, errors.New("Could not find free port")
 }
 
 func (s *ServerImpl) portConfigured(port int) bool {
 	_, taken := s.config.Ports[strconv.Itoa(port)]
-
 	return taken
 }
 
@@ -479,13 +475,13 @@ func haproxyCmd(cfgFile string, pidFile string, runningPid int) *exec.Cmd {
 	var cmd *exec.Cmd
 	if runningPid > 0 {
 		cmd = exec.Command(
-			"/usr/local/sbin/haproxy",
+			"haproxy",
 			"-f", cfgFile,
 			"-p", pidFile,
 			"-sf", strconv.Itoa(runningPid))
 	} else {
 		cmd = exec.Command(
-			"/usr/local/sbin/haproxy",
+			"haproxy",
 			"-f", cfgFile,
 			"-p", pidFile)
 	}
