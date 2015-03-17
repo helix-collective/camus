@@ -62,8 +62,8 @@ const (
 )
 
 type Config struct {
-	Ports  map[string]string
-	Labels map[string]string // todo.
+	// TODO(koz): Change this to map[int]string.
+	Ports map[string]string
 }
 
 type ServerImpl struct {
@@ -86,9 +86,6 @@ func readConfig(path string) (*Config, error) {
 	}
 	if config.Ports == nil {
 		config.Ports = make(map[string]string)
-	}
-	if config.Labels == nil {
-		config.Labels = make(map[string]string)
 	}
 	return &config, nil
 }
@@ -159,139 +156,133 @@ func (s *ServerImpl) EnforceLoop() {
 	}
 }
 
-func (s *ServerImpl) Enforce() error {
+func (s *ServerImpl) Enforce() {
+	procs, err := FindListeningProcesses(s.startPort, s.endPort)
+	if err != nil {
+		fmt.Printf("Failed to find processes: %s\n", err)
+		return
+	}
+	procsByPort := makeProcessPortLookup(procs)
+	for portStr, deployId := range s.config.Ports {
+		port, _ := strconv.Atoi(portStr)
+		// deployId should be running on port.
+		running, ok := procsByPort[port]
+		if !ok {
+			// Nothing is running on port, so we should run our deploy.
+			// TODO(koz): Wait for health of all started deploys in parallel.
+			s.startDeployAndWaitForHealth(deployId, port)
+			continue
+		}
+		if running.DeployId != deployId {
+			runningDeploy := running.DeployId
+			if runningDeploy == "" {
+				runningDeploy = fmt.Sprintf("(pid:%d)", running.Pid)
+			}
+			// Something unexpected is running on port, so report it.
+			fmt.Printf("%s, not %s is running on %s\n", runningDeploy, deployId, port)
+			continue
+		}
+	}
+}
 
-	deploys, err := s.ListDeploys()
+func makeProcessPortLookup(procs []Process) map[int]Process {
+	result := map[int]Process{}
+	for _, proc := range procs {
+		result[proc.Port] = proc
+	}
+	return result
+}
+
+func makeProcessDeployIdLookup(procs []Process) map[string]Process {
+	result := map[string]Process{}
+	for _, proc := range procs {
+		result[proc.DeployId] = proc
+	}
+	return result
+}
+
+func (s *ServerImpl) startDeployAndWaitForHealth(deployId string, port int) error {
+	app, cmd, err := s.commandForDeploy(deployId, port)
 	if err != nil {
 		return err
 	}
 
-	for _, deploy := range deploys {
-		if deploy.Port > 0 && deploy.Health == 0 {
-			port := deploy.Port
-
-			app, cmd, err := s.commandForDeploy(deploy.Id, port)
-			if err != nil {
-				continue
-			}
-
-			if err := cmd.Start(); err != nil {
-				continue
-			}
-
-			if err := s.waitForAppToStart(port, app); err != nil {
-				continue
-			}
-
-			log.Printf("Started %d", port)
-		}
+	if err := cmd.Start(); err != nil {
+		return err
 	}
 
+	if err := s.waitForAppToStart(port, app); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
-
-	result, err := s.scanDeployDirs()
-	if err != nil {
-		return nil, err
-	}
-
-	result = s.scanConfig(result)
-	result = s.scanPorts(result)
-
-	return result, nil
-}
-
-func (s *ServerImpl) scanDeployDirs() ([]*Deploy, error) {
+func (s *ServerImpl) readDeployIdsFromDisk() ([]string, error) {
 	infos, err := ioutil.ReadDir(s.deploysPath)
 	if err != nil {
 		return nil, err
 	}
-
-	var result []*Deploy
+	var result []string
 	for _, info := range infos {
-		result = append(result, &Deploy{
-			Id:      info.Name(),
-			Port:    -1,
-			Tracked: false,
-		})
+		result = append(result, info.Name())
 	}
-
 	return result, nil
 }
 
-func (s *ServerImpl) scanConfig(deploys []*Deploy) []*Deploy {
-	result := []*Deploy{}
-	result = append(result, deploys...)
-
-	for portStr, deployId := range s.config.Ports {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			println(err)
-			continue
-		}
-
-		deploy := findDeployById(deployId, result)
-
-		if deploy == nil {
-			result = append(result, &Deploy{
-				Id:      deployId,
-				Port:    port,
-				Tracked: true,
-				Errors:  []string{"No deploy dir present!"},
-			})
-		} else {
-			deploy.Port = port
-			deploy.Tracked = true
-		}
-	}
-
-	return result
-}
-
-// Finds ports with *something* on them,
-// either checking the health status for known deploys
-// (and updating its run state)
-// or adding a deploy with "unknown" id.
-func (s *ServerImpl) scanPorts(deploys []*Deploy) []*Deploy {
+func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
 	healthChecks := 0
 	checkSync := make(chan int)
-
-	result := []*Deploy{}
-	result = append(result, deploys...)
-
-	for port := s.startPort; port <= s.endPort; port++ {
-		if portFree(port) {
-			// This is important, leave the Health as 0,
-			// so our background task knows it's safe to run
-			continue
-		}
-
-		dep := findDeployByPort(port, result)
-		if dep == nil {
-			result = append(result, &Deploy{
-				Id:      fmt.Sprintf("(unknown-%d)", port),
-				Port:    port,
-				Tracked: false,
-				Health:  0,
-			})
-		} else {
-			dep.Tracked = true
-			healthChecks++
-			go func(deploy *Deploy) {
-				s.checkHealth(deploy)
-				checkSync <- 0
-			}(dep)
-		}
+	for _, deploy := range deploys {
+		healthChecks++
+		go func(deploy *Deploy) {
+			s.checkHealth(deploy)
+			checkSync <- 0
+		}(deploy)
 	}
 
 	for healthChecks > 0 {
 		<-checkSync
 		healthChecks--
 	}
+}
 
-	return result
+func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
+	procs, err := FindListeningProcesses(s.startPort, s.endPort)
+	if err != nil {
+		return nil, err
+	}
+	procsByDeployId := makeProcessDeployIdLookup(procs)
+	unaccountedProcsByPort := makeProcessPortLookup(procs)
+	knownRunningDeploys := []*Deploy{}
+	deployIds, err := s.readDeployIdsFromDisk()
+	if err != nil {
+		return nil, err
+	}
+	knownDeploys := []*Deploy{}
+	for _, deployId := range deployIds {
+		proc, running := procsByDeployId[deployId]
+		deploy := &Deploy{
+			Id:      deployId,
+			Port:    proc.Port,
+			Tracked: true,
+		}
+		if running {
+			delete(unaccountedProcsByPort, proc.Port)
+			knownRunningDeploys = append(knownRunningDeploys, deploy)
+		}
+		knownDeploys = append(knownDeploys, deploy)
+	}
+	// Any processes that haven't been accounted for yet, we list them as deploys, too.
+	unaccounted := []*Deploy{}
+	for _, proc := range unaccountedProcsByPort {
+		unaccounted = append(unaccounted, &Deploy{
+			Id:      "unknown-" + strconv.Itoa(proc.Port),
+			Port:    proc.Port,
+			Tracked: false,
+		})
+	}
+	s.checkAllHealth(knownRunningDeploys)
+	return append(knownDeploys, unaccounted...), nil
 }
 
 func (s *ServerImpl) checkHealth(deploy *Deploy) {
@@ -313,24 +304,6 @@ func (s *ServerImpl) checkHealth(deploy *Deploy) {
 	}
 
 	deploy.Health = status
-}
-
-func findDeployByPort(port int, deploys []*Deploy) *Deploy {
-	for _, deploy := range deploys {
-		if deploy.Port == port {
-			return deploy
-		}
-	}
-	return nil
-}
-
-func findDeployById(id string, deploys []*Deploy) *Deploy {
-	for _, deploy := range deploys {
-		if deploy.Id == id {
-			return deploy
-		}
-	}
-	return nil
 }
 
 func (s *ServerImpl) findUnusedPort() (int, error) {
