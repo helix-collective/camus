@@ -31,6 +31,9 @@ type Deploy struct {
 	// -1 for not specified
 	Port int
 
+	// The id of the process running this deploy.
+	Pid int
+
 	// http status code,
 	// 0 for nothing running on port (or no port specified)
 	// negative timeout or something else wrong with the deploy
@@ -263,6 +266,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 		proc, running := procsByDeployId[deployId]
 		deploy := &Deploy{
 			Id:      deployId,
+			Pid:     proc.Pid,
 			Port:    proc.Port,
 			Tracked: true,
 		}
@@ -277,6 +281,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	for _, proc := range unaccountedProcsByPort {
 		unaccounted = append(unaccounted, &Deploy{
 			Id:      "unknown-" + strconv.Itoa(proc.Port),
+			Pid:     proc.Pid,
 			Port:    proc.Port,
 			Tracked: false,
 		})

@@ -100,6 +100,7 @@ func (c *TerminalClient) listCmd() error {
 	tbl := TableDef{
 		Columns: []ColumnDef{
 			ColumnDef{"id", 25},
+			ColumnDef{"pid", 5},
 			ColumnDef{"tracked", 7},
 			ColumnDef{"port", 4},
 			ColumnDef{"st", 3},
@@ -111,6 +112,7 @@ func (c *TerminalClient) listCmd() error {
 	for _, deploy := range deploys {
 		tbl.PrintRow(
 			deploy.Id,
+			deploy.Pid,
 			yn(deploy.Tracked),
 			deploy.Port,
 			deploy.Health,
