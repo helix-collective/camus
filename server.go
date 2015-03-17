@@ -123,7 +123,7 @@ func NewServerImpl(root string) (*ServerImpl, error) {
 		enforceDelay: time.Duration(5) * time.Second,
 	}
 
-	go server.EnforceLoop()
+	// go server.EnforceLoop()
 
 	return server, nil
 }
