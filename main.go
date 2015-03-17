@@ -13,8 +13,8 @@ import (
 // TODO the rest
 
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
-var mode = flag.String("mode", "client", "'server' or 'client'")
 var port = flag.Int("port", 8000, "port to serve on / connect to")
+var serverMode = flag.Bool("server", false, "If true, run as a server.")
 var runBackgroundCheck = flag.Bool("enforce", false, "Run background enforcer")
 var deployFile = flag.String("cfg", "deploy.json", "Deploy config file")
 var targetName = flag.String("target", "prod", "Target backend")
@@ -22,7 +22,7 @@ var targetName = flag.String("target", "prod", "Target backend")
 func main() {
 	welcome()
 	flag.Parse()
-	if *mode == "server" {
+	if *serverMode {
 		serverMain()
 	} else {
 		clientMain()
