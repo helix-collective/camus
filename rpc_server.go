@@ -74,10 +74,22 @@ type KillUnknownProcessesRequest struct {
 }
 
 type KillUnknownProcessesResponse struct {
-	KilledPids []int
 }
 
 func (s *RpcServer) KillUnknownProcesses(arg KillUnknownProcessesRequest, reply *KillUnknownProcessesResponse) error {
-	reply.KilledPids = s.server.KillUnknownProcesses()
+	s.server.KillUnknownProcesses()
+	return nil
+}
+
+////////////////
+
+type ShutdownRequest struct {
+}
+
+type ShutdownResponse struct {
+}
+
+func (s *RpcServer) Shutdown(arg ShutdownRequest, reply *ShutdownResponse) error {
+	s.server.Shutdown()
 	return nil
 }

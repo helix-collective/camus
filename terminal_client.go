@@ -23,8 +23,9 @@ func NewTerminalClient(flags *flag.FlagSet, client Client) *TerminalClient {
 	c.commands["list"] = c.listCmd
 	c.commands["set"] = c.setCmd
 	c.commands["help"] = c.helpCmd
-	// TODO(koz): Consider not exposing this in the terminal client.
+	// TODO(koz): Consider not exposing these in the terminal client.
 	c.commands["cleanup"] = c.cleanupCmd
+	c.commands["shutdown"] = c.shutdownCmd
 	return c
 }
 
@@ -131,8 +132,12 @@ func (c *TerminalClient) listCmd() error {
 }
 
 func (c *TerminalClient) cleanupCmd() error {
-	pids := c.client.KillUnknownProcesses()
-	fmt.Printf("killed %v\n", pids)
+	c.client.KillUnknownProcesses()
+	return nil
+}
+
+func (c *TerminalClient) shutdownCmd() error {
+	c.client.Shutdown()
 	return nil
 }
 

@@ -20,7 +20,7 @@ type Process struct {
 // ports between lowPort and highPort. It will try and use the current working
 // directory to determine which deployId the running process has.
 // TODO(koz): Provide a fake shell so we can test this function.
-func FindListeningProcesses(lowPort, highPort int) ([]Process, error) {
+func FindListeningProcesses(lowPort, highPort int) []Process {
 	// List all TCP sockets listening between lowPort and highPort (-P prevents
 	// trying to resolve port numbers to well-known service names).
 	portRange := fmt.Sprintf(":%d-%d", lowPort, highPort)
@@ -29,7 +29,7 @@ func FindListeningProcesses(lowPort, highPort int) ([]Process, error) {
 	data, _ := cmd.Output()
 	procs, err := parseLookupPortOutput(string(data))
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	for i := range procs {
 		cwd, err := lookupCwd(procs[i].Pid)
@@ -39,7 +39,7 @@ func FindListeningProcesses(lowPort, highPort int) ([]Process, error) {
 		}
 		procs[i].DeployId = deriveDeployIdFromCwd(cwd)
 	}
-	return procs, nil
+	return procs
 }
 
 func deriveDeployIdFromCwd(cwd string) string {

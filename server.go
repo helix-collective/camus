@@ -160,11 +160,7 @@ func (s *ServerImpl) EnforceLoop() {
 }
 
 func (s *ServerImpl) Enforce() {
-	procs, err := FindListeningProcesses(s.startPort, s.endPort)
-	if err != nil {
-		fmt.Printf("Failed to find processes: %s\n", err)
-		return
-	}
+	procs := FindListeningProcesses(s.startPort, s.endPort)
 	procsByPort := makeProcessPortLookup(procs)
 	for portStr, deployId := range s.config.Ports {
 		port, _ := strconv.Atoi(portStr)
@@ -220,16 +216,16 @@ func (s *ServerImpl) startDeployAndWaitForHealth(deployId string, port int) erro
 	return nil
 }
 
-func (s *ServerImpl) readDeployIdsFromDisk() ([]string, error) {
+func (s *ServerImpl) readDeployIdsFromDisk() []string {
 	infos, err := ioutil.ReadDir(s.deploysPath)
 	if err != nil {
-		return nil, err
+		panic(fmt.Errorf("read deploy dir: %s", err))
 	}
 	var result []string
 	for _, info := range infos {
 		result = append(result, info.Name())
 	}
-	return result, nil
+	return result
 }
 
 func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
@@ -249,45 +245,12 @@ func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
 	}
 }
 
-func contains(strs []string, str string) bool {
-	for _, s := range strs {
-		if s == str {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *ServerImpl) findUnknownProcesses() ([]Process, error) {
-	procs, err := FindListeningProcesses(s.startPort, s.endPort)
-	if err != nil {
-		return nil, err
-	}
-	deployIds, err := s.readDeployIdsFromDisk()
-	if err != nil {
-		return nil, err
-	}
-	unknown := []Process{}
-	for _, proc := range procs {
-		if !contains(deployIds, proc.DeployId) {
-			unknown = append(unknown, proc)
-		}
-	}
-	return unknown, nil
-}
-
 func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
-	procs, err := FindListeningProcesses(s.startPort, s.endPort)
-	if err != nil {
-		return nil, err
-	}
+	procs := FindListeningProcesses(s.startPort, s.endPort)
 	procsByDeployId := makeProcessDeployIdLookup(procs)
 	unaccountedProcsByPort := makeProcessPortLookup(procs)
 	knownRunningDeploys := []*Deploy{}
-	deployIds, err := s.readDeployIdsFromDisk()
-	if err != nil {
-		return nil, err
-	}
+	deployIds := s.readDeployIdsFromDisk()
 	knownDeploys := []*Deploy{}
 	for _, deployId := range deployIds {
 		proc, running := procsByDeployId[deployId]
@@ -533,25 +496,43 @@ func readPid(pidFile string) (int, error) {
 
 }
 
-func (s *ServerImpl) KillUnknownProcesses() []int {
-	unknown, err := s.findUnknownProcesses()
-	if err != nil {
-		return nil
-	}
-	killed := []int{}
-	for _, proc := range unknown {
-		fmt.Printf("killing %d\n", proc.Pid)
-		proc, err := os.FindProcess(proc.Pid)
-		if err != nil {
-			fmt.Printf("couldn't find %d\n", proc.Pid)
-			continue
-		}
-		err = proc.Kill()
-		if err != nil {
-			fmt.Printf("failed to kill %d\n", proc.Pid)
-		} else {
-			killed = append(killed, proc.Pid)
+func contains(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str {
+			return true
 		}
 	}
-	return killed
+	return false
+}
+
+// TODO(koz): Don't return haproxy processes here.
+func (s *ServerImpl) findUnknownProcesses() []Process {
+	procs := FindListeningProcesses(s.startPort, s.endPort)
+	deployIds := s.readDeployIdsFromDisk()
+	unknown := []Process{}
+	for _, proc := range procs {
+		if !contains(deployIds, proc.DeployId) {
+			unknown = append(unknown, proc)
+		}
+	}
+	return unknown
+}
+
+func (s *ServerImpl) KillUnknownProcesses() {
+	for _, proc := range s.findUnknownProcesses() {
+		if p, err := os.FindProcess(proc.Pid); err == nil {
+			p.Kill()
+		}
+	}
+}
+
+// Shutdown kills all processes in the range of camus and then exits.
+func (s *ServerImpl) Shutdown() {
+	procs := FindListeningProcesses(s.startPort, s.endPort)
+	for _, proc := range procs {
+		if p, err := os.FindProcess(proc.Pid); err == nil {
+			p.Kill()
+		}
+	}
+	os.Exit(0)
 }
