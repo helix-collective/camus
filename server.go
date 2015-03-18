@@ -280,7 +280,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	unaccounted := []*Deploy{}
 	for _, proc := range unaccountedProcsByPort {
 		unaccounted = append(unaccounted, &Deploy{
-			Id:      "unknown-" + strconv.Itoa(proc.Port),
+			Id:      fmt.Sprintf("%s-%d", proc.Name, proc.Port),
 			Pid:     proc.Pid,
 			Port:    proc.Port,
 			Tracked: false,
