@@ -16,6 +16,7 @@ type Client interface {
 	Run(deployId string) (int, error)
 	SetMainByPort(port int) error
 	ListDeploys() ([]*Deploy, error)
+	KillUnknownProcesses() []int
 }
 
 type ClientImpl struct {
@@ -178,4 +179,11 @@ func setupChannel(remotePort int, sshPort int, login string) int {
 	println()
 
 	return localPort
+}
+
+func (c *ClientImpl) KillUnknownProcesses() []int {
+	var args KillUnknownProcessesRequest
+	var reply KillUnknownProcessesResponse
+	c.client.Call("RpcServer.KillUnknownProcesses", &args, &reply)
+	return reply.KilledPids
 }

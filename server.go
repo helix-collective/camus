@@ -249,6 +249,33 @@ func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
 	}
 }
 
+func contains(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *ServerImpl) findUnknownProcesses() ([]Process, error) {
+	procs, err := FindListeningProcesses(s.startPort, s.endPort)
+	if err != nil {
+		return nil, err
+	}
+	deployIds, err := s.readDeployIdsFromDisk()
+	if err != nil {
+		return nil, err
+	}
+	unknown := []Process{}
+	for _, proc := range procs {
+		if !contains(deployIds, proc.DeployId) {
+			unknown = append(unknown, proc)
+		}
+	}
+	return unknown, nil
+}
+
 func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	procs, err := FindListeningProcesses(s.startPort, s.endPort)
 	if err != nil {
@@ -504,4 +531,27 @@ func readPid(pidFile string) (int, error) {
 		return -1, nil // OK - no current pid
 	}
 
+}
+
+func (s *ServerImpl) KillUnknownProcesses() []int {
+	unknown, err := s.findUnknownProcesses()
+	if err != nil {
+		return nil
+	}
+	killed := []int{}
+	for _, proc := range unknown {
+		fmt.Printf("killing %d\n", proc.Pid)
+		proc, err := os.FindProcess(proc.Pid)
+		if err != nil {
+			fmt.Printf("couldn't find %d\n", proc.Pid)
+			continue
+		}
+		err = proc.Kill()
+		if err != nil {
+			fmt.Printf("failed to kill %d\n", proc.Pid)
+		} else {
+			killed = append(killed, proc.Pid)
+		}
+	}
+	return killed
 }

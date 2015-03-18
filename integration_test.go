@@ -15,10 +15,6 @@ func run(t *testing.T, cmd string) *exec.Cmd {
 	return runInDir(t, cmd, "")
 }
 
-func runInTestApp(t *testing.T, cmd string) *exec.Cmd {
-	return runInDir(t, cmd, "testapp")
-}
-
 func runInDir(t *testing.T, cmdString, dir string) *exec.Cmd {
 	words := strings.Split(cmdString, " ")
 	cmd := exec.Command(words[0], words[1:]...)
@@ -45,7 +41,7 @@ func startInDir(t *testing.T, cmdString, dir string) *exec.Cmd {
 	return cmd
 }
 
-func TestEverything(t *testing.T) {
+func TestDeploy(t *testing.T) {
 	cwd, err := filepath.Abs(".")
 	if err != nil {
 		t.Fatalf("%s", err)
@@ -55,6 +51,9 @@ func TestEverything(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %s\n", err)
 	}
 	run(t, "go build")
+
+	// We start a new server process instead of running it here to avoid the
+	// complexities of shutting down an HTTP server in-process in go.
 	server := startInDir(t, cwd+"/camus -server", deployDir)
 	defer server.Process.Kill()
 	time.Sleep(1 * time.Second)

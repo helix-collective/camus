@@ -61,11 +61,23 @@ type NewDeployDirResponse struct {
 	Path     string
 }
 
-func (s *RpcServer) NewDeployDir(
-	arg NewDeployDirRequest, reply *NewDeployDirResponse) error {
-
+func (s *RpcServer) NewDeployDir(arg NewDeployDirRequest, reply *NewDeployDirResponse) error {
 	resp := s.server.NewDeployDir()
 	reply.Path = resp.Path
 	reply.DeployId = resp.DeployId
+	return nil
+}
+
+////////////////
+
+type KillUnknownProcessesRequest struct {
+}
+
+type KillUnknownProcessesResponse struct {
+	KilledPids []int
+}
+
+func (s *RpcServer) KillUnknownProcesses(arg KillUnknownProcessesRequest, reply *KillUnknownProcessesResponse) error {
+	reply.KilledPids = s.server.KillUnknownProcesses()
 	return nil
 }
