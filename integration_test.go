@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -179,7 +178,7 @@ func TestRun(t *testing.T) {
 }
 
 func writeDataIntoTestapp(t *testing.T, data string) {
-	err := ioutil.WriteFile("testapp/data/file", []byte(data), os.FileMode(644))
+	err := ioutil.WriteFile("testapp/data/file", []byte(data), os.FileMode(0644))
 	if err != nil {
 		t.Fatalf("write file: %s\n", err)
 	}
