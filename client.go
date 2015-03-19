@@ -13,6 +13,7 @@ import (
 type Client interface {
 	Build() (string, error)
 	Push() (string, error)
+	// Run runs the specified deploy, returning the port it is listening on.
 	Run(deployId string) (int, error)
 	SetMainByPort(port int) error
 	ListDeploys() ([]*Deploy, error)
@@ -24,6 +25,7 @@ type ClientImpl struct {
 	app    Application
 	client *rpc.Client
 	target *Target
+	dir    string
 }
 
 func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
@@ -49,11 +51,13 @@ func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
 		app:    app,
 		client: client,
 		target: target,
+		dir:    path.Dir(deployFile),
 	}, nil
 }
 
 func (c *ClientImpl) Build() (string, error) {
 	cmd := exec.Command("sh", "-c", c.app.BuildCmd())
+	cmd.Dir = c.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -82,7 +86,7 @@ func (c *ClientImpl) Push() (string, error) {
 	// TODO(koz): Delete this code when I fix ssh on my computer.
 	/*
 		if true {
-			err := runVisibleCmd("rsync", "-azv", "--delete",
+			err := c.runVisibleCmd("rsync", "-azv", "--delete",
 				localDeployDir+"/",
 				remoteDeployDir)
 			if err != nil {
@@ -91,15 +95,15 @@ func (c *ClientImpl) Push() (string, error) {
 			return reply.DeployId, nil
 		}
 	*/
-	if err := runVisibleCmd("rsync", "-azv", "--delete",
+	if err := c.runVisibleCmd("rsync", "-azv", "--delete",
 		localDeployDir+"/",
-		"-e", fmt.Sprintf("ssh -p %d", c.target.SshPort),
+		"-e", fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no", c.target.SshPort),
 		c.target.Ssh+":"+remoteLatestDir); err != nil {
 		return "", err
 	}
 
-	if err := runVisibleCmd(
-		"ssh", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh,
+	if err := c.runVisibleCmd(
+		"ssh", "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh,
 		"rsync", "-a", "--delete",
 		remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return "", err
@@ -110,10 +114,11 @@ func (c *ClientImpl) Push() (string, error) {
 	return reply.DeployId, nil
 }
 
-func runVisibleCmd(command string, args ...string) error {
+func (c *ClientImpl) runVisibleCmd(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Dir = c.dir
 	fmt.Printf("exec %s\n", cmd.Args)
 	return cmd.Run()
 }
@@ -161,7 +166,7 @@ func prepend(item interface{}, items []interface{}) []interface{} {
 func setupChannel(remotePort int, sshPort int, login string) int {
 	localPort := 9847 // todo: Just get some free port
 	cmd := exec.Command(
-		"ssh", "-p", strconv.Itoa(sshPort), login,
+		"ssh", "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(sshPort), login,
 		fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
 	_, err := cmd.StdinPipe()
 	err = cmd.Start()
