@@ -70,7 +70,7 @@ func runInDir(t *testing.T, cmdString, dir string) *exec.Cmd {
 	fmt.Printf("[%s]\n", cmdString)
 	err := cmd.Run()
 	if err != nil {
-		t.Fatalf("Failed to run '%s': %s\n", cmd, err)
+		t.Fatalf("Failed to run '%s': %s\n", cmd.Args, err)
 	}
 	return cmd
 }
@@ -83,7 +83,7 @@ func startInDir(t *testing.T, cmdString, dir string) *exec.Cmd {
 	fmt.Printf("[%s]\n", cmdString)
 	err := cmd.Start()
 	if err != nil {
-		t.Fatalf("Failed to start '%s': %s\n", cmd, err)
+		t.Fatalf("Failed to start '%s': %s\n", cmd.Args, err)
 	}
 	return cmd
 }

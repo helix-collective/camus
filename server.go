@@ -178,7 +178,7 @@ func (s *ServerImpl) Enforce() {
 				runningDeploy = fmt.Sprintf("(pid:%d)", running.Pid)
 			}
 			// Something unexpected is running on port, so report it.
-			fmt.Printf("%s, not %s is running on %s\n", runningDeploy, deployId, port)
+			fmt.Printf("%s, not %s is running on %d\n", runningDeploy, deployId, port)
 			continue
 		}
 	}
