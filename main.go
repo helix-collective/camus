@@ -11,14 +11,11 @@ import (
 	"time"
 )
 
-const CAMUS_PORT = 9966
-
 // TODO the rest
 
 var serverRoot = flag.String("serverRoot", "", "Path to the root directory in the prod machine")
 var mode = flag.String("mode", "client", "'server' or 'client'")
-var port = flag.String("port", fmt.Sprintf(":%d", CAMUS_PORT),
-	"port to serve on / connect to")
+var port = flag.Int("port", 8000, "port to serve on / connect to")
 var runBackgroundCheck = flag.Bool("enforce", false, "Run background enforcer")
 
 func main() {
@@ -32,23 +29,29 @@ func main() {
 }
 
 func serverMain() {
-	server, err := NewServerImpl(*serverRoot, *runBackgroundCheck)
+	server, err := NewServerImpl(
+		*serverRoot,
+		*runBackgroundCheck,
+		*port)
 	if err != nil {
 		log.Fatal("NewServer:", err)
 	}
 	rpcServer := &RpcServer{server}
 	rpc.Register(rpcServer)
 	rpc.HandleHTTP()
-	l, err := net.Listen("tcp", *port)
+
+	// Localhost only, in case it's not behind a firewall!
+	portStr := fmt.Sprintf("localhost:%d", *port)
+	l, err := net.Listen("tcp", portStr)
 	if err != nil {
 		log.Fatal("failed to listen:", err)
 	}
-	fmt.Printf("Listening on %s\n", *port)
+	fmt.Printf("Listening on %s\n", portStr)
 	http.Serve(l, nil)
 }
 
 func clientMain() {
-	client, err := NewClientImpl()
+	client, err := NewClientImpl(*port)
 	if err != nil {
 		log.Fatal("NewClient:", err)
 	}
@@ -65,10 +68,9 @@ func welcome() {
 	println()
 }
 
-func setupChannel(login string) int {
-	port := CAMUS_PORT
-	localPort := port + 1
-	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", localPort, port))
+func setupChannel(remotePort int, login string) int {
+	localPort := remotePort + 1 // todo: Just get some free port
+	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
 	_, err := cmd.StdinPipe()
 	err = cmd.Start()
 

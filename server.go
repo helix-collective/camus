@@ -93,7 +93,11 @@ func readConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-func NewServerImpl(root string, autoEnforce bool) (*ServerImpl, error) {
+func NewServerImpl(
+	root string,
+	autoEnforce bool,
+	portBase int) (*ServerImpl, error) {
+
 	root, err := filepath.Abs(root)
 	if err != nil {
 		log.Fatal("Root path:", err)
@@ -116,8 +120,8 @@ func NewServerImpl(root string, autoEnforce bool) (*ServerImpl, error) {
 	server := &ServerImpl{
 		root:         root,
 		config:       config,
-		startPort:    8001,
-		endPort:      8099,
+		startPort:    portBase + 1,
+		endPort:      portBase + 99,
 		client:       client,
 		deploysPath:  deploysPath,
 		enforceDelay: time.Duration(5) * time.Second,

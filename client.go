@@ -22,13 +22,11 @@ type ClientImpl struct {
 	client *rpc.Client
 }
 
-func NewClientImpl() (*ClientImpl, error) {
+func NewClientImpl(localPort int) (*ClientImpl, error) {
 	app, err := ApplicationFromConfig("deploy.json")
 	if err != nil {
 		panic("Failed to read deploy.json, are sure you're in an app directory?")
 	}
-
-	localPort := CAMUS_PORT
 
 	serverAddr := fmt.Sprintf("localhost:%d", localPort)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
