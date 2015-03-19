@@ -52,6 +52,13 @@ func (tc *testClient) Run(deployId string) int {
 	return port
 }
 
+func (tc *testClient) SetMainByPort(port int) {
+	err := tc.client.SetMainByPort(port)
+	if err != nil {
+		tc.t.Fatalf("set main by port: %s\n", err)
+	}
+}
+
 func run(t *testing.T, cmd string) *exec.Cmd {
 	return runInDir(t, cmd, "")
 }
@@ -139,16 +146,21 @@ func TestDeploy(t *testing.T) {
 	}
 }
 
-func getLocalhost(t *testing.T, port int) string {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d", port))
+func getLocalhost(t *testing.T, port int, path string) string {
+	// XXX(koz): We use curl here, because Go has a penchant for reusing TCP
+	// connections, which interferes with haproxy reloading its config. I
+	// suspect it's because haproxy starts a new instance of itself with the
+	// new config and that takes over from the old process. Any existing
+	// connections to the old process will continue to use the old routing
+	// table, hence we don't see it update if we reload it between identical
+	// get requests.
+	url := fmt.Sprintf("http://localhost:%d%s", port, path)
+	cmd := exec.Command("curl", url)
+	output, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
+	return string(output)
 }
 
 func TestRun(t *testing.T) {
@@ -159,9 +171,60 @@ func TestRun(t *testing.T) {
 	client.Build()
 	deployId := client.Push()
 	port := client.Run(deployId)
-	data := getLocalhost(t, port)
+	data := getLocalhost(t, port, "")
 	expected := "Hello World!"
 	if string(data) != expected {
 		t.Fatalf("expected %s, got %s", expected, data)
 	}
+}
+
+func writeDataIntoTestapp(t *testing.T, data string) {
+	err := ioutil.WriteFile("testapp/data/file", []byte(data), os.FileMode(644))
+	if err != nil {
+		t.Fatalf("write file: %s\n", err)
+	}
+}
+
+func expectGet(t *testing.T, port int, path, expected string) {
+	data := getLocalhost(t, port, path)
+	if data != expected {
+		url := fmt.Sprintf("http://localhost:%d%s", port, path)
+		t.Fatalf("expected %s to yield %s, but was %s", url, expected, data)
+	}
+}
+
+func TestHaproxy(t *testing.T) {
+	client, server := startCamus(t)
+	defer server.Kill()
+	defer client.Shutdown()
+
+	writeDataIntoTestapp(t, "version 1")
+	client.Build()
+	v1DeployId := client.Push("prod")
+
+	// XXX(koz): Hilariously, as we choose ids based on the current timestamp
+	// to the second, pushing twice in quick succession here breaks as we
+	// generate the same deployId. For now fix by waiting a second, but
+	// obviously we should do something smarter like accept a label, or add a
+	// .2 suffix, etc.
+	time.Sleep(1 * time.Second)
+
+	writeDataIntoTestapp(t, "version 2")
+	client.Build()
+	v2DeployId := client.Push("prod")
+
+	port1 := client.Run(v1DeployId)
+	port2 := client.Run(v2DeployId)
+
+	expectGet(t, port1, "/file", "version 1")
+	expectGet(t, port2, "/file", "version 2")
+
+	// TODO(koz): Don't hardcode the haproxy port.
+	haproxyPort := 8098
+	client.SetMainByPort(port2)
+	expectGet(t, haproxyPort, "/file", "version 2")
+	client.SetMainByPort(port1)
+	expectGet(t, haproxyPort, "/file", "version 1")
+	client.SetMainByPort(port2)
+	expectGet(t, haproxyPort, "/file", "version 2")
 }
