@@ -19,6 +19,7 @@ var serverRoot = flag.String("serverRoot", "", "Path to the root directory in th
 var mode = flag.String("mode", "client", "'server' or 'client'")
 var port = flag.String("port", fmt.Sprintf(":%d", CAMUS_PORT),
 	"port to serve on / connect to")
+var runBackgroundCheck = flag.Bool("enforce", false, "Run background enforcer")
 
 func main() {
 	welcome()
@@ -31,7 +32,7 @@ func main() {
 }
 
 func serverMain() {
-	server, err := NewServerImpl(*serverRoot)
+	server, err := NewServerImpl(*serverRoot, *runBackgroundCheck)
 	if err != nil {
 		log.Fatal("NewServer:", err)
 	}

@@ -93,7 +93,7 @@ func readConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-func NewServerImpl(root string) (*ServerImpl, error) {
+func NewServerImpl(root string, autoEnforce bool) (*ServerImpl, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		log.Fatal("Root path:", err)
@@ -123,7 +123,9 @@ func NewServerImpl(root string) (*ServerImpl, error) {
 		enforceDelay: time.Duration(5) * time.Second,
 	}
 
-	// go server.EnforceLoop()
+	if autoEnforce {
+		go server.EnforceLoop()
+	}
 
 	return server, nil
 }
