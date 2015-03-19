@@ -17,7 +17,7 @@ type Application interface {
 	HealthEndpoint() string
 
 	// e.g. prod -> Target{...}
-	Target(server string) Target
+	Target(server string) *Target
 }
 
 type AppImpl struct {
@@ -110,8 +110,8 @@ func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 func (a *AppImpl) RunCmd(port int) string {
 	return strings.Replace(a.def.RunCmd, "%PORT%", fmt.Sprintf("%d", port), -1)
 }
-func (a *AppImpl) Target(server string) Target {
-	return *a.def.Targets[server]
+func (a *AppImpl) Target(server string) *Target {
+	return a.def.Targets[server]
 }
 
 func (a *AppImpl) BuildCmd() string {

@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-	"os/exec"
 	"time"
 )
 
@@ -17,6 +16,8 @@ var serverRoot = flag.String("serverRoot", "", "Path to the root directory in th
 var mode = flag.String("mode", "client", "'server' or 'client'")
 var port = flag.Int("port", 8000, "port to serve on / connect to")
 var runBackgroundCheck = flag.Bool("enforce", false, "Run background enforcer")
+var deployFile = flag.String("cfg", "deploy.json", "Deploy config file")
+var targetName = flag.String("target", "prod", "Target backend")
 
 func main() {
 	welcome()
@@ -51,7 +52,7 @@ func serverMain() {
 }
 
 func clientMain() {
-	client, err := NewClientImpl(*port)
+	client, err := NewClientImpl(*deployFile, *targetName)
 	if err != nil {
 		log.Fatal("NewClient:", err)
 	}
@@ -66,19 +67,6 @@ func welcome() {
 	println("  " + QUOTES[time.Now().UnixNano()%int64(len(QUOTES))])
 	println("      -- Camus")
 	println()
-}
-
-func setupChannel(remotePort int, login string) int {
-	localPort := remotePort + 1 // todo: Just get some free port
-	cmd := exec.Command("ssh", login, fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
-	_, err := cmd.StdinPipe()
-	err = cmd.Start()
-
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-
-	return localPort
 }
 
 func sleepSeconds(seconds int) {

@@ -54,7 +54,7 @@ func (c *TerminalClient) deployCmd() error {
 		return err
 	}
 
-	deployId, err := c.client.Push("prod")
+	deployId, err := c.client.Push()
 	if err != nil {
 		return err
 	}

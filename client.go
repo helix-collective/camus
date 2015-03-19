@@ -12,7 +12,7 @@ import (
 
 type Client interface {
 	Build() (string, error)
-	Push(server string) (string, error)
+	Push() (string, error)
 	Run(deployId string) (int, error)
 	SetMainByPort(port int) error
 	ListDeploys() ([]*Deploy, error)
@@ -21,13 +21,21 @@ type Client interface {
 type ClientImpl struct {
 	app    Application
 	client *rpc.Client
+	target *Target
 }
 
-func NewClientImpl(localPort int) (*ClientImpl, error) {
-	app, err := ApplicationFromConfig(true, "deploy.json")
+func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
+	app, err := ApplicationFromConfig(true, deployFile)
 	if err != nil {
 		return nil, err
 	}
+
+	target := app.Target(targetName)
+	if target == nil {
+		return nil, fmt.Errorf("Invalid target: '%s'", targetName)
+	}
+
+	localPort := setupChannel(target.Base, target.SshPort, target.Ssh)
 
 	serverAddr := fmt.Sprintf("localhost:%d", localPort)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
@@ -38,6 +46,7 @@ func NewClientImpl(localPort int) (*ClientImpl, error) {
 	return &ClientImpl{
 		app:    app,
 		client: client,
+		target: target,
 	}, nil
 }
 
@@ -53,7 +62,7 @@ func (c *ClientImpl) Build() (string, error) {
 	return "dummy", nil
 }
 
-func (c *ClientImpl) Push(server string) (string, error) {
+func (c *ClientImpl) Push() (string, error) {
 	req := &NewDeployDirRequest{}
 	var reply NewDeployDirResponse
 
@@ -67,7 +76,6 @@ func (c *ClientImpl) Push(server string) (string, error) {
 	localDeployDir := c.app.BuildOutputDir()
 	remoteDeployDir := reply.Path
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
-	target := c.app.Target(server)
 
 	// TODO(koz): Delete this code when I fix ssh on my computer.
 	/*
@@ -83,13 +91,13 @@ func (c *ClientImpl) Push(server string) (string, error) {
 	*/
 	if err := runVisibleCmd("rsync", "-azv", "--delete",
 		localDeployDir+"/",
-		"-e", fmt.Sprintf("ssh -p %d", target.SshPort),
-		target.Ssh+":"+remoteLatestDir); err != nil {
+		"-e", fmt.Sprintf("ssh -p %d", c.target.SshPort),
+		c.target.Ssh+":"+remoteLatestDir); err != nil {
 		return "", err
 	}
 
 	if err := runVisibleCmd(
-		"ssh", "-p", strconv.Itoa(target.SshPort), target.Ssh,
+		"ssh", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh,
 		"rsync", "-a", "--delete",
 		remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return "", err
@@ -146,4 +154,28 @@ func (c *ClientImpl) info(args ...interface{}) {
 
 func prepend(item interface{}, items []interface{}) []interface{} {
 	return append([]interface{}{item}, items...)
+}
+
+func setupChannel(remotePort int, sshPort int, login string) int {
+	localPort := 9847 // todo: Just get some free port
+	cmd := exec.Command(
+		"ssh", "-p", strconv.Itoa(sshPort), login,
+		fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
+	_, err := cmd.StdinPipe()
+	err = cmd.Start()
+
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+
+	fmt.Printf("Opening connection to %s:%d -> camus@%d ..",
+		login, sshPort, remotePort)
+
+	for portFree(localPort) {
+		print(".")
+		sleepSeconds(1)
+	}
+	println()
+
+	return localPort
 }
