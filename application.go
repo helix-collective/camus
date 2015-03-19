@@ -16,15 +16,25 @@ type Application interface {
 
 	HealthEndpoint() string
 
-	// e.g. prod -> user@host  (no path)
-	SshTarget(server string) string
+	// e.g. prod -> Target{...}
+	Target(server string) Target
 }
 
 type AppImpl struct {
 	def ApplicationDef
 }
 
+type Target struct {
+	Ssh string // e.g. user@host
+
+	SshPort int // optional
+
+	Base int // camus base port, e.g. 8000
+}
+
 type ApplicationDef struct {
+	Name string
+
 	BuildCmd string
 
 	BuildOutputDir string
@@ -35,10 +45,10 @@ type ApplicationDef struct {
 	HealthEndpoint string
 
 	// e.g. user@host  (no path)
-	SshTargets map[string]string
+	Targets map[string]*Target
 }
 
-func ApplicationFromConfig(file string) (Application, error) {
+func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 	var def ApplicationDef
 
 	data, err := ioutil.ReadFile(file)
@@ -48,14 +58,60 @@ func ApplicationFromConfig(file string) (Application, error) {
 
 	json.Unmarshal(data, &def)
 
+	errMsg := func(str string, args ...interface{}) (Application, error) {
+		return nil, fmt.Errorf("deploy.json: "+str, args...)
+	}
+
+	if isClient {
+		if len(def.Name) == 0 {
+			return errMsg("Missing Name")
+		}
+		if len(def.BuildCmd) == 0 {
+			return errMsg("Missing BuildCmd")
+		}
+		if len(def.BuildOutputDir) == 0 {
+			return errMsg("Missing BuildOutputDir")
+		}
+
+		foundTarget := false
+		for name, target := range def.Targets {
+			foundTarget = true
+			if len(target.Ssh) == 0 {
+				return errMsg("Missing %s.Ssh", name)
+			}
+			if target.Base == 0 {
+				return errMsg("Missing %s.Base", name)
+			}
+			if target.SshPort == 0 {
+				target.SshPort = 22
+			}
+		}
+
+		if !foundTarget {
+			return errMsg("No targets specified")
+		}
+	}
+
+	if len(def.RunCmd) == 0 {
+		return errMsg("Missing RunCmd")
+	}
+
+	if len(def.HealthEndpoint) == 0 {
+		if isClient {
+			return errMsg("Missing HealthEndpoint")
+		} else {
+			def.HealthEndpoint = "/"
+		}
+	}
+
 	return &AppImpl{def}, nil
 }
 
 func (a *AppImpl) RunCmd(port int) string {
 	return strings.Replace(a.def.RunCmd, "%PORT%", fmt.Sprintf("%d", port), -1)
 }
-func (a *AppImpl) SshTarget(server string) string {
-	return a.def.SshTargets[server]
+func (a *AppImpl) Target(server string) Target {
+	return *a.def.Targets[server]
 }
 
 func (a *AppImpl) BuildCmd() string {

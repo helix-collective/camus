@@ -295,7 +295,7 @@ func (s *ServerImpl) scanPorts(deploys []*Deploy) []*Deploy {
 }
 
 func (s *ServerImpl) checkHealth(deploy *Deploy) {
-	app, err := ApplicationFromConfig(s.deployConfigFile(deploy.Id))
+	app, err := ApplicationFromConfig(false, s.deployConfigFile(deploy.Id))
 	if err != nil {
 		deploy.Errors = append(deploy.Errors,
 			fmt.Sprintf("Missing deploy config (%s)", err))
@@ -415,7 +415,9 @@ func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 
 func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Application, *exec.Cmd, error) {
 	deployPath := s.deployDir(deployIdToRun)
-	app, err := ApplicationFromConfig(path.Join(deployPath, "deploy.json"))
+	app, err := ApplicationFromConfig(false,
+		path.Join(deployPath, "deploy.json"))
+
 	if err != nil {
 		return nil, nil, err
 	}

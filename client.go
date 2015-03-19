@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 )
 
 type Client interface {
@@ -23,9 +24,9 @@ type ClientImpl struct {
 }
 
 func NewClientImpl(localPort int) (*ClientImpl, error) {
-	app, err := ApplicationFromConfig("deploy.json")
+	app, err := ApplicationFromConfig(true, "deploy.json")
 	if err != nil {
-		panic("Failed to read deploy.json, are sure you're in an app directory?")
+		return nil, err
 	}
 
 	serverAddr := fmt.Sprintf("localhost:%d", localPort)
@@ -66,7 +67,7 @@ func (c *ClientImpl) Push(server string) (string, error) {
 	localDeployDir := c.app.BuildOutputDir()
 	remoteDeployDir := reply.Path
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
-	sshTarget := c.app.SshTarget(server)
+	target := c.app.Target(server)
 
 	// TODO(koz): Delete this code when I fix ssh on my computer.
 	/*
@@ -82,11 +83,13 @@ func (c *ClientImpl) Push(server string) (string, error) {
 	*/
 	if err := runVisibleCmd("rsync", "-azv", "--delete",
 		localDeployDir+"/",
-		sshTarget+":"+remoteLatestDir); err != nil {
+		"-e", fmt.Sprintf("ssh -p %d", target.SshPort),
+		target.Ssh+":"+remoteLatestDir); err != nil {
 		return "", err
 	}
 
-	if err := runVisibleCmd("ssh", sshTarget,
+	if err := runVisibleCmd(
+		"ssh", "-p", strconv.Itoa(target.SshPort), target.Ssh,
 		"rsync", "-a", "--delete",
 		remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return "", err
