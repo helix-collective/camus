@@ -59,8 +59,10 @@ func clientMain() {
 }
 
 func welcome() {
-	println(QUOTES[time.Now().UnixNano()%int64(len(QUOTES))])
-	println("  -- Camus")
+	println()
+	println("  " + QUOTES[time.Now().UnixNano()%int64(len(QUOTES))])
+	println("      -- Camus")
+	println()
 }
 
 func setupChannel(login string) int {
