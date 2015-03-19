@@ -61,7 +61,7 @@ func TestEverything(t *testing.T) {
 
 	os.Chdir("testapp")
 
-	client, err := NewClientImpl(".")
+	client, err := NewClientImpl()
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
