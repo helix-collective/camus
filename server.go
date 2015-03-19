@@ -65,8 +65,7 @@ const (
 )
 
 type Config struct {
-	// TODO(koz): Change this to map[int]string.
-	Ports map[string]string
+	Ports map[int]string
 }
 
 type ServerImpl struct {
@@ -80,15 +79,24 @@ type ServerImpl struct {
 }
 
 func readConfig(path string) (*Config, error) {
-	var config Config
+	config := Config{
+		Ports: map[int]string{},
+	}
 	if data, err := ioutil.ReadFile(path); err == nil {
-		err = json.Unmarshal(data, &config)
+		c := struct {
+			Ports map[string]string
+		}{}
+		err = json.Unmarshal(data, &c)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if config.Ports == nil {
-		config.Ports = make(map[string]string)
+		for portStr, deployId := range c.Ports {
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				return nil, fmt.Errorf("Ports keys should be numbers")
+			}
+			config.Ports[port] = deployId
+		}
 	}
 	return &config, nil
 }
@@ -162,8 +170,7 @@ func (s *ServerImpl) EnforceLoop() {
 func (s *ServerImpl) Enforce() {
 	procs := FindListeningProcesses(s.startPort, s.endPort)
 	procsByPort := makeProcessPortLookup(procs)
-	for portStr, deployId := range s.config.Ports {
-		port, _ := strconv.Atoi(portStr)
+	for port, deployId := range s.config.Ports {
 		// deployId should be running on port.
 		running, ok := procsByPort[port]
 		if !ok {
@@ -317,15 +324,14 @@ func (s *ServerImpl) findUnusedPort() (int, error) {
 func (s *ServerImpl) lookupConfiguredPort(deployId string) int {
 	for port, id := range s.config.Ports {
 		if id == deployId {
-			p, _ := strconv.Atoi(port)
-			return p
+			return port
 		}
 	}
 	return 0
 }
 
 func (s *ServerImpl) portConfigured(port int) bool {
-	_, taken := s.config.Ports[strconv.Itoa(port)]
+	_, taken := s.config.Ports[port]
 	return taken
 }
 
@@ -344,7 +350,15 @@ func portFree(port int) bool {
 }
 
 func (s *ServerImpl) writeConfig() error {
-	data, err := json.MarshalIndent(s.config, "", "  ")
+	c := struct {
+		Ports map[string]string
+	}{
+		Ports: map[string]string{},
+	}
+	for port, deployId := range s.config.Ports {
+		c.Ports[strconv.Itoa(port)] = deployId
+	}
+	data, err := json.MarshalIndent(&c, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -357,9 +371,9 @@ func (s *ServerImpl) SetMainByPort(port int) error {
 }
 
 func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
-	for portStr, deployId := range s.config.Ports {
+	for port, deployId := range s.config.Ports {
 		if deployIdToRun == deployId {
-			return -1, fmt.Errorf("Already configured for port %s", portStr)
+			return -1, fmt.Errorf("Already configured for port %d", port)
 		}
 	}
 
@@ -373,7 +387,7 @@ func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 		return -1, err
 	}
 
-	s.config.Ports[strconv.Itoa(port)] = deployIdToRun
+	s.config.Ports[port] = deployIdToRun
 	err = s.writeConfig()
 	if err != nil {
 		return -1, fmt.Errorf("write config: %s", err)
