@@ -258,11 +258,13 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 			Id:      deployId,
 			Pid:     proc.Pid,
 			Port:    proc.Port,
-			Tracked: true,
+			Tracked: s.lookupConfiguredPort(deployId) != 0,
 		}
 		if running {
 			delete(unaccountedProcsByPort, proc.Port)
 			knownRunningDeploys = append(knownRunningDeploys, deploy)
+		} else {
+			deploy.Port = s.lookupConfiguredPort(deployId)
 		}
 		knownDeploys = append(knownDeploys, deploy)
 	}
@@ -308,6 +310,18 @@ func (s *ServerImpl) findUnusedPort() (int, error) {
 		}
 	}
 	return -1, errors.New("Could not find free port")
+}
+
+// lookupConfiguredPort returns the port the specified deploy is configured to
+// run on, or 0 if it's not configured to run anywhere.
+func (s *ServerImpl) lookupConfiguredPort(deployId string) int {
+	for port, id := range s.config.Ports {
+		if id == deployId {
+			p, _ := strconv.Atoi(port)
+			return p
+		}
+	}
+	return 0
 }
 
 func (s *ServerImpl) portConfigured(port int) bool {
