@@ -70,7 +70,7 @@ type Config struct {
 
 type ServerImpl struct {
 	root         string
-	config       *Config
+	config       Config
 	startPort    int
 	endPort      int
 	client       *http.Client
@@ -78,7 +78,7 @@ type ServerImpl struct {
 	enforceDelay time.Duration
 }
 
-func readConfig(path string) (*Config, error) {
+func readConfig(path string) (Config, error) {
 	config := Config{
 		Ports: map[int]string{},
 	}
@@ -88,17 +88,17 @@ func readConfig(path string) (*Config, error) {
 		}{}
 		err = json.Unmarshal(data, &c)
 		if err != nil {
-			return nil, err
+			return Config{}, err
 		}
 		for portStr, deployId := range c.Ports {
 			port, err := strconv.Atoi(portStr)
 			if err != nil {
-				return nil, fmt.Errorf("Ports keys should be numbers")
+				return Config{}, fmt.Errorf("Ports keys should be numbers")
 			}
 			config.Ports[port] = deployId
 		}
 	}
-	return &config, nil
+	return config, nil
 }
 
 func NewServerImpl(
