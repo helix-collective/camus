@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,22 +13,24 @@ import (
 type Status int
 
 const (
-	// These states can lead to other states.
+	// The task isn't running.
 	Stopped Status = iota
+
+	// The task is starting up, but hasn't become healthy yet.
+	Starting
+
+	// The task is currently running.
 	Running
 
-	// These are exit states, the runner won't progress from them.
-	FailedToStart
-	ExitedInFailure
-	ExitedCleanly
+	// Unrecoverable error.
+	Error
 )
 
 var statusName = []string{
-	"STOPPED",
-	"RUNNING",
-	"FAILEDTOSTART",
-	"EXITEDINFAILURE",
-	"EXITEDCLEANLY",
+	"Stopped",
+	"Starting",
+	"Running",
+	"Error",
 }
 
 func (s Status) String() string {
@@ -37,9 +38,9 @@ func (s Status) String() string {
 }
 
 const (
-	healthWaitDuartion time.Duration = 1 * time.Second
+	healthWaitDuration time.Duration = 1 * time.Second
 
-	maxRetries int = 5
+	maxRunnerRetries int = 5
 )
 
 type Runner struct {
@@ -50,6 +51,8 @@ type Runner struct {
 	stop       chan int
 	Pid        int32
 
+	// cond is a condition variable on status changing, with lock as its
+	// lockable. lock guards both status and logs.
 	cond   *sync.Cond
 	lock   *sync.Mutex
 	status Status
@@ -86,7 +89,7 @@ func (r *Runner) setStatus(status Status) {
 	defer r.lock.Unlock()
 	r.logfNolock("status change: %v -> %v\n", r.status, status)
 	r.status = status
-	r.cond.Signal()
+	r.cond.Broadcast()
 }
 
 func (r *Runner) Status() Status {
@@ -123,55 +126,49 @@ func (r *Runner) Stop() {
 	r.stop <- 0
 }
 
-// WaitForStatus waits for this process to acquire the given status, or return
-// false if it never will.
-func (r *Runner) WaitForStatus(status Status) bool {
+func (r *Runner) WaitForStatusChange() Status {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	for {
-		if r.status == status || r.status > Running {
-			return r.status == status
-		}
-		r.cond.Wait()
-	}
+	r.cond.Wait()
+	return r.status
 }
 
 func (r *Runner) run() bool {
-	args := strings.Split(r.Cmd, " ")
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.Command("sh", "-c", r.Cmd)
 	cmd.Dir = r.Dir
 	r.logf("running %s\n", cmd.Args)
 	err := cmd.Start()
 	if err != nil {
-		r.setStatus(FailedToStart)
+		r.logf("Failed to start\n")
+		r.setStatus(Error)
 		return false
 	}
+	r.setStatus(Starting)
 	atomic.StoreInt32(&r.Pid, int32(cmd.Process.Pid))
+	// TODO(koz): Separate the health checking into a separate goroutine /
+	// state variable.
 	healthOk := false
-	for i := 0; i < maxRetries; i++ {
+	for i := 0; i < maxRunnerRetries; i++ {
 		r.logf("Checking health...\n")
 		if r.checkHealth() {
 			healthOk = true
 			r.logf("Health is good!\n")
 			break
 		}
-		time.Sleep(healthWaitDuartion)
+		time.Sleep(healthWaitDuration)
 	}
 	if healthOk {
 		r.setStatus(Running)
 	} else {
-		r.setStatus(FailedToStart)
+		// Health check failed at startup = unrecoverable error.
+		r.setStatus(Error)
 	}
 	exitChan := make(chan int)
 	pid := cmd.Process.Pid
 	go func() {
-		exitState, err := cmd.Process.Wait()
+		exitState, _ := cmd.Process.Wait()
 		r.logf("process exited with status %v\n", exitState)
-		if err != nil || !exitState.Success() {
-			r.setStatus(ExitedInFailure)
-		} else {
-			r.setStatus(ExitedCleanly)
-		}
+		r.setStatus(Stopped)
 		exitChan <- 0
 	}()
 
@@ -185,6 +182,8 @@ func (r *Runner) run() bool {
 		case <-r.stop:
 			r.logf("Killing process at callers request...\n")
 			shouldLoop = false
+			// We don't use cmd.Process.Kill() here as Process is used in the
+			// goroutine that's Wait()ing on the process to terminate.
 			if p, err := os.FindProcess(pid); err == nil {
 				p.Kill()
 			}
