@@ -47,6 +47,9 @@ func TestRunnerRestartsCrash(t *testing.T) {
 	if err = proc.Kill(); err != nil {
 		t.Fatalf("Failed to kill process.")
 	}
+	if !r.WaitForStatus(ExitedInFailure) {
+		t.Fatalf("Should have exited in failure")
+	}
 	time.Sleep(1 * time.Second)
 	if !r.WaitForStatus(Running) {
 		t.Fatalf("Server failed to recover from being killed")
