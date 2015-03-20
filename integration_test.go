@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -146,20 +147,18 @@ func TestDeploy(t *testing.T) {
 }
 
 func getLocalhost(t *testing.T, port int, path string) string {
-	// XXX(koz): We use curl here, because Go has a penchant for reusing TCP
-	// connections, which interferes with haproxy reloading its config. I
-	// suspect it's because haproxy starts a new instance of itself with the
-	// new config and that takes over from the old process. Any existing
-	// connections to the old process will continue to use the old routing
-	// table, hence we don't see it update if we reload it between identical
-	// get requests.
+	// Don't reuse TCP connections as they may be to an old haproxy.
+	http.DefaultTransport.(*http.Transport).DisableKeepAlives = true
 	url := fmt.Sprintf("http://localhost:%d%s", port, path)
-	cmd := exec.Command("curl", url)
-	output, err := cmd.Output()
+	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(output)
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func TestRun(t *testing.T) {
