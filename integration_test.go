@@ -198,7 +198,7 @@ func TestHaproxy(t *testing.T) {
 
 	writeDataIntoTestapp(t, "version 1")
 	client.Build()
-	v1DeployId := client.Push("prod")
+	v1DeployId := client.Push()
 
 	// XXX(koz): Hilariously, as we choose ids based on the current timestamp
 	// to the second, pushing twice in quick succession here breaks as we
@@ -209,7 +209,7 @@ func TestHaproxy(t *testing.T) {
 
 	writeDataIntoTestapp(t, "version 2")
 	client.Build()
-	v2DeployId := client.Push("prod")
+	v2DeployId := client.Push()
 
 	port1 := client.Run(v1DeployId)
 	port2 := client.Run(v2DeployId)
@@ -235,7 +235,7 @@ func TestTracked(t *testing.T) {
 	defer client.Shutdown()
 
 	client.Build()
-	deployId := client.Push("prod")
+	deployId := client.Push()
 	deploys := client.ListDeploys()
 	if len(deploys) != 1 {
 		t.Fatalf("expected exactly 1 deploy, got %d", len(deploys))
@@ -277,7 +277,7 @@ func TestPort(t *testing.T) {
 	defer client.Shutdown()
 
 	client.Build()
-	deployId := client.Push("prod")
+	deployId := client.Push()
 	port := client.Run(deployId)
 	deploys := client.ListDeploys()
 	if len(deploys) != 1 {
