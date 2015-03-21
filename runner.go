@@ -77,7 +77,7 @@ func (r *Runner) checkHealth() bool {
 	r.logf("Getting %s\n", url)
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Printf("Failed to get: %s\n", err)
+		r.logf("Failed to get: %s\n", err)
 		return false
 	}
 	r.logf("Status code: %v\n", resp.StatusCode)
