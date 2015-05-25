@@ -14,7 +14,6 @@ cd /tmp
 
 rm -rf /usr/local/go
 tar -C /usr/local -xf go1.4.2.linux-amd64.tar.gz
-tar -C /usr/local -xf go1.4.2.linux-amd64.tar.gz
 
 tar xf haproxy-1.5.3.tar.gz
 cd haproxy-1.5.3
