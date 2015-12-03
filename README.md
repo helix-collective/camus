@@ -5,7 +5,7 @@ Deployments that don't make you want to kill yourself
 - client/server: server manages application deploys, client connects to it to run commands, get info, etc.
 - multiple deploys can be run at once, each will be on a different port. server monitors/tracks the deploys
 - a particular deploy can be selected as the "live" deploy. camus runs an instance of haproxy to forward requests from the "frontend" port to the "live" deploy. see the ports section below for more information.
-- rollbacks, roll-forwards are fast and easy - camus just reconfigures and reoloads hxproxy with the backend port pointed to the current deploy.
+- rollbacks, roll-forwards are fast and easy - camus just reconfigures and reloads hxproxy with the backend port pointed to the current deploy.
 
 # basic server setup
 - install a recent version of go (1.4.2+ is good) & haproxy (1.5+ is good)

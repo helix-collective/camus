@@ -52,6 +52,13 @@ func (tc *testClient) Run(deployId string) int {
 	return port
 }
 
+func (tc *testClient) Stop(deployId string) {
+	err := tc.client.Stop(deployId)
+	if err != nil {
+		tc.t.Fatalf("client stop: %s\n", err)
+	}
+}
+
 func (tc *testClient) SetMainByPort(port int) {
 	err := tc.client.SetMainByPort(port)
 	if err != nil {
@@ -173,6 +180,42 @@ func TestRun(t *testing.T) {
 	expected := "Hello World!"
 	if string(data) != expected {
 		t.Fatalf("expected %s, got %s", expected, data)
+	}
+}
+
+func TestStop(t *testing.T) {
+	client, server := startCamus(t)
+	defer server.Kill()
+	defer client.Shutdown()
+
+	client.Build()
+	deployId := client.Push()
+
+	if err := client.client.Stop(deployId); err == nil {
+		t.Fatalf("expected error when stopping non-running deploy")
+	}
+
+	port := client.Run(deployId)
+
+	if err := client.client.Stop("something made up"); err == nil {
+		t.Fatalf("expected error when stopping non-existent deploy")
+	}
+
+	data := getLocalhost(t, port, "")
+	expected := "Hello World!"
+	if string(data) != expected {
+		t.Fatalf("expected %s, got %s", expected, data)
+	}
+
+	client.Stop(deployId)
+
+	// Don't reuse TCP connections as they may be to an old haproxy.
+	http.DefaultTransport.(*http.Transport).DisableKeepAlives = true
+	url := fmt.Sprintf("http://localhost:%d", port)
+	if _, geterr := http.Get(url); geterr == nil {
+		t.Fatalf("process not stopped")
+	} else if !strings.Contains(geterr.Error(), "connection reset by peer")  {
+		t.Fatalf("something failed, but it wasn't a reset connection: %s", geterr)
 	}
 }
 

@@ -17,6 +17,7 @@ type Client interface {
 	Run(deployId string) (int, error)
 	SetMainByPort(port int) error
 	ListDeploys() ([]*Deploy, error)
+	Stop(deployId string) error
 	KillUnknownProcesses()
 	Shutdown()
 }
@@ -132,6 +133,12 @@ func (c *ClientImpl) Run(deployId string) (int, error) {
 	}
 
 	return reply.Port, nil
+}
+
+func (c *ClientImpl) Stop(deployId string) error {
+	req := &StopDeployRequest{deployId}
+	var reply StopDeployResponse
+	return c.client.Call("RpcServer.StopDeploy", &req, &reply)
 }
 
 func (c *ClientImpl) SetMainByPort(port int) error {

@@ -70,6 +70,18 @@ func (s *RpcServer) NewDeployDir(arg NewDeployDirRequest, reply *NewDeployDirRes
 
 ////////////////
 
+type StopDeployRequest struct {
+	DeployId string
+}
+type StopDeployResponse struct {
+}
+
+func (s *RpcServer) StopDeploy(arg StopDeployRequest, reply *StopDeployResponse) error {
+	return s.server.Stop(arg.DeployId)
+}
+
+////////////////
+
 type KillUnknownProcessesRequest struct {
 }
 

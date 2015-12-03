@@ -405,6 +405,34 @@ func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 	return port, nil
 }
 
+func (s *ServerImpl) Stop(deployIdToStop string) error {
+	procs := FindListeningProcesses(s.startPort, s.endPort)
+	procsByDeployId := makeProcessDeployIdLookup(procs)
+	proc, running := procsByDeployId[deployIdToStop]
+	port := s.lookupConfiguredPort(deployIdToStop)
+	if port == 0 {
+		return fmt.Errorf("Deploy not running or not on a port")
+	}
+
+	delete(s.config.Ports, port)
+	err := s.writeConfig()
+	if err != nil {
+		return fmt.Errorf("write config: %s", err)
+	}
+
+	//kill the proc *after* removing it from the list so it doesn't auto-restart
+	if running {
+		if p, err := os.FindProcess(proc.Pid); err == nil {
+			p.Kill()
+		} else {
+			return fmt.Errorf("Failed to kill pid %s", proc.Pid)
+		}
+	} else {
+		return fmt.Errorf("Deploy not running")
+	}
+	return nil
+}
+
 func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Application, *exec.Cmd, error) {
 	deployPath := s.deployDir(deployIdToRun)
 	app, err := ApplicationFromConfig(false,

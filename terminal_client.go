@@ -23,6 +23,7 @@ func NewTerminalClient(flags *flag.FlagSet, client Client) *TerminalClient {
 	c.commands["list"] = c.listCmd
 	c.commands["set"] = c.setCmd
 	c.commands["help"] = c.helpCmd
+	c.commands["stop"] = c.stopCmd
 	// TODO(koz): Consider not exposing these in the terminal client.
 	c.commands["cleanup"] = c.cleanupCmd
 	c.commands["shutdown"] = c.shutdownCmd
@@ -128,6 +129,19 @@ func (c *TerminalClient) listCmd() error {
 			fmt.Sprintf("%v", deploy.Errors),
 		)
 	}
+	return nil
+}
+
+func (c *TerminalClient) stopCmd() error {
+	deployId := c.flags.Arg(1)
+	if deployId == "" {
+		return errors.New("Missing deploy id")
+	}
+	err := c.client.Stop(deployId)
+	if err != nil {
+		return err
+	}
+	println("killed")
 	return nil
 }
 

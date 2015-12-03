@@ -51,4 +51,5 @@ var QUOTES = []string{
 	"When the soul suffers too much, it develops a taste for misfortune.",
 	"When the soul suffers too much, it develops a taste for misfortune.",
 	"Yeeeeeeeeh!",
+	"κολοκυθοκεφτέδες",
 }
