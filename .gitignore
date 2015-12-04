@@ -1,4 +1,5 @@
 *.swp
 /camus
 /testDeploys
+/testapp/data/file
 
