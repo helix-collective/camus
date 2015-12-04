@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -106,6 +107,10 @@ func findDeployById(deployId string, deploys []*Deploy) bool {
 }
 
 func startCamus(t *testing.T) (*testClient, *os.Process) {
+	return startCamusWithConfig(t, "testapp/deploy.json")
+}
+
+func startCamusWithConfig(t *testing.T, conf string) (*testClient, *os.Process) {
 	cwd, err := filepath.Abs(".")
 	if err != nil {
 		t.Fatalf("%s", err)
@@ -122,7 +127,7 @@ func startCamus(t *testing.T) (*testClient, *os.Process) {
 	// Give the server time to start up.
 	time.Sleep(1 * time.Second)
 
-	client, err := NewClientImpl("testapp/deploy.json", "prod")
+	client, err := NewClientImpl(conf, "prod")
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -179,6 +184,51 @@ func TestRun(t *testing.T) {
 	data := getLocalhost(t, port, "")
 	expected := "Hello World!"
 	if string(data) != expected {
+		t.Fatalf("expected %s, got %s", expected, data)
+	}
+}
+
+func TestPidRun(t *testing.T) {
+	client, server := startCamusWithConfig(t, "testapp/deploy2.json")
+	defer server.Kill()
+	defer client.Shutdown()
+
+	client.Build()
+	deployId := client.Push()
+	port := client.Run(deployId)
+	data := getLocalhost(t, port, "")
+
+	//TODO(tim) nice way to test Enforce() in out-of-process server? :s
+	deploys := client.ListDeploys()
+	var node *Deploy
+	var testappHaproxy *Deploy
+	for _, d := range deploys {
+		fmt.Printf(" - %s on %d @ %d - %s\n", d.Id, d.Port, d.Pid, d)
+		//deploy = frontend haproxy
+		if regexp.MustCompile("\\d\\d\\d\\d-\\d\\d-\\d\\d-\\d\\d-\\d\\d-\\d\\d").MatchString(d.Id) {
+			if testappHaproxy != nil {
+				t.Fatalf("multiple testapp haproxy instances running %s and %s", d.Id, testappHaproxy.Id)
+			}
+			testappHaproxy = d
+
+		//backend deploy app = original process, but overridden by haproxy app.pid
+		} else if regexp.MustCompile("node-\\d+").MatchString(d.Id) {
+			if node != nil {
+				t.Fatalf("multiple testapp node deploys running %s and %s", d.Id, node.Id)
+			}
+			node = d
+		}
+	}
+	if node == nil || testappHaproxy == nil {
+		t.Fatalf("expected to find both testapp node and testapp haproxy instances")
+	}
+	if node.Port != testappHaproxy.Port + 20 {
+		t.Fatalf("expected testapp haproxy port %d to be at 20 port offset from node %d", testappHaproxy.Port, node.Port)
+	}
+
+	data2 := getLocalhost(t, port + 20, "")
+	expected := "Hello World!"
+	if string(data) != expected || string(data2) != expected {
 		t.Fatalf("expected %s, got %s", expected, data)
 	}
 }

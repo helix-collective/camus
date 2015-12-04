@@ -62,6 +62,7 @@ const (
 	serverConfigFileName = "config.json"
 	haproxyConfig        = "haproxy.cfg"
 	haproxyPid           = "haproxy.pid"
+	appPid               = "app.pid"
 )
 
 type Config struct {
@@ -179,6 +180,18 @@ func (s *ServerImpl) Enforce() {
 			s.startDeployAndWaitForHealth(deployId, port)
 			continue
 		}
+
+		//process is running, now check it's the *right* one
+		//if the deploy has written to a pid file then trust this app-specific override
+		if pid, err := s.getDeployPidOverride(deployId); err != nil {
+			fmt.Printf("warning: could not read deploy %s's pid file: %s\n", deployId, err)
+		} else if pid < 0 {
+			//no pid override
+		} else if running.Pid == pid {
+			continue
+		}
+
+		//otherwise, check the default: the deployed app in the deploy dir on the deploy port
 		if running.DeployId != deployId {
 			runningDeploy := running.DeployId
 			if runningDeploy == "" {
@@ -191,10 +204,29 @@ func (s *ServerImpl) Enforce() {
 	}
 }
 
+func (s *ServerImpl) getDeployPidOverride(deployId string) (int, error) {
+	pidFile := path.Join(s.deployDir(deployId), appPid)
+	if _, statErr := os.Stat(pidFile); statErr != nil {
+		return -1, nil //file doesn't exist = no pid override
+	} else if pid, err := readPid(pidFile); err != nil {
+		return -1, errors.New(fmt.Sprintf("warning: could not read deploy %s's pid file: %s", deployId, err))
+	} else {
+		return pid, nil
+	}
+}
+
 func makeProcessPortLookup(procs []Process) map[int]Process {
 	result := map[int]Process{}
 	for _, proc := range procs {
 		result[proc.Port] = proc
+	}
+	return result
+}
+
+func makeProcessPidLookup(procs []Process) map[int]Process {
+	result := map[int]Process{}
+	for _, proc := range procs {
+		result[proc.Pid] = proc
 	}
 	return result
 }
@@ -255,12 +287,19 @@ func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
 func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	procs := FindListeningProcesses(s.startPort, s.endPort)
 	procsByDeployId := makeProcessDeployIdLookup(procs)
+	procsByPid := makeProcessPidLookup(procs)
 	unaccountedProcsByPort := makeProcessPortLookup(procs)
 	knownRunningDeploys := []*Deploy{}
 	deployIds := s.readDeployIdsFromDisk()
 	knownDeploys := []*Deploy{}
 	for _, deployId := range deployIds {
 		proc, running := procsByDeployId[deployId]
+		if pidOverride, err := s.getDeployPidOverride(deployId); err == nil {
+			if _, ok := procsByPid[pidOverride]; ok {
+				//found a process matching the app.pid override
+				proc, running = procsByPid[pidOverride]
+			}
+		}
 		deploy := &Deploy{
 			Id:      deployId,
 			Pid:     proc.Pid,

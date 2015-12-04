@@ -1,11 +1,19 @@
 var fs = require('fs');
 var express = require('express')
+var exec = require('child_process').exec;
 var app = express()
 
-var port = process.argv[2] - 0;
+var portDiff = parseInt(process.argv[3]) || 0;
 
-if (!(port >= 2000 && port <= 30000)) {
+var frontPort = process.argv[2] - 0;
+var appPort = frontPort + portDiff;
+
+if (!(appPort >= 2000 && appPort <= 30000)) {
   throw new Error("Bad port: " + process.argv[2]);
+}
+
+if (portDiff) {
+  startProxy(frontPort, appPort);
 }
 
 app.get('/', function (req, res) {
@@ -36,7 +44,7 @@ app.get('/file', function (req, res) {
   }
 });
 
-var server = app.listen(port, function () {
+var server = app.listen(appPort, function () {
 
   var host = server.address().address
   var port = server.address().port
@@ -44,3 +52,13 @@ var server = app.listen(port, function () {
   console.log('Example app listening at http://%s:%s', host, port)
 
 });
+
+function startProxy(frontPort, appPort) {
+  var cmd = './start-haproxy.sh ' + frontPort + ' '+ appPort;
+  console.log("run haproxy on %s", frontPort);
+  exec(cmd, function(err, out, code) {
+    if (err instanceof Error) {
+      throw err;
+    }
+  });
+}

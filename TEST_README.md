@@ -1,5 +1,8 @@
-# run tests
+# run integration tests
 go test
+
+# interactive testing
+go build && ./camus -enforce=true -server -serverRoot someRootDir
 
 # install things
 - haproxy

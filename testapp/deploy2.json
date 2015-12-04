@@ -1,0 +1,13 @@
+{
+  "Name": "MyApp",
+  "BuildCmd": "./build.sh && cp deploy2.json ./build/deploy.json",
+  "BuildOutputDir": "./build",
+  "RunCmd": "node app.js %PORT% 20",
+  "HealthEndpoint": "/status",
+  "Targets": {
+    "prod": {
+      "Ssh": "localhost",
+      "Base": 8000
+    }
+  }
+}
