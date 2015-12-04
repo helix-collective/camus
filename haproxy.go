@@ -32,14 +32,16 @@ defaults
 
 
 
-listen stats *:%STATS_PORT%
+listen stats
+    bind *:%STATS_PORT%
     mode http
     stats enable
     stats hide-version
     stats realm Haproxy\ Statistics
     stats uri /
 
-frontend main *:%FRONT_PORT%
+frontend main
+    bind *:%FRONT_PORT%
     default_backend thing-%APP_PORT%
 
 
