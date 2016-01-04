@@ -462,7 +462,12 @@ func (s *ServerImpl) Stop(deployIdToStop string) error {
 	//kill the proc *after* removing it from the list so it doesn't auto-restart
 	if running {
 		if p, err := os.FindProcess(proc.Pid); err == nil {
-			p.Kill()
+			//try to kill by process group id so the whole bundle incl. children gets cleaned up
+			if pgid,pgerr := syscall.Getpgid(proc.Pid); pgerr == nil {
+				syscall.Kill(-pgid, 15) //minus is required
+			} else {
+				p.Kill()
+			}
 		} else {
 			return fmt.Errorf("Failed to kill pid %s", proc.Pid)
 		}
@@ -481,6 +486,7 @@ func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Applicati
 		return nil, nil, err
 	}
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid:true}
 	cmd.Dir = deployPath
 	detachProc(cmd)
 	return app, cmd, nil
