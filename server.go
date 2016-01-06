@@ -62,7 +62,7 @@ const (
 	serverConfigFileName = "config.json"
 	haproxyConfig        = "haproxy.cfg"
 	haproxyPid           = "haproxy.pid"
-	appPid               = "app.pid"
+	appPid               = "PID_FILE"
 )
 
 type Config struct {
@@ -296,7 +296,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 		proc, running := procsByDeployId[deployId]
 		if pidOverride, err := s.getDeployPidOverride(deployId); err == nil {
 			if _, ok := procsByPid[pidOverride]; ok {
-				//found a process matching the app.pid override
+				//found a process matching the app pid override
 				proc, running = procsByPid[pidOverride]
 			}
 		}
