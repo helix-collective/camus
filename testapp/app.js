@@ -60,6 +60,5 @@ function startProxy(frontPort, appPort) {
     if (err instanceof Error) {
       throw err;
     }
-    process.exit(code);
   });
 }

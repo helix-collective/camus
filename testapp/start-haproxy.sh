@@ -12,9 +12,9 @@ cat haproxy.cfg.tpl | sed "s|%FRONTPORT%|$FRONT|g" | sed "s|%APPPORT%|$APP|g" > 
 
 
 function finish {
-  echo "cleaning up app pid $PID"
+  echo "cleaning up app.pid $PID"
   kill $PID
-  rm -f PID_FILE
+  rm -f app.pid
 }
 
 trap finish EXIT
@@ -25,6 +25,6 @@ exec haproxy -f "$TEMP" &
 PID=$!
 echo "exec'd $PID"
 cd -
-echo "$PID" > PID_FILE
+echo "$PID" > app.pid
 echo "wait for $PID"
 wait $PID
