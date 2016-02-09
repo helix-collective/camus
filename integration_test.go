@@ -211,7 +211,7 @@ func TestPidRun(t *testing.T) {
 			}
 			testappHaproxy = d
 
-		//backend deploy app = original process, but overridden by haproxy app.pid
+		//backend deploy app = original process, but overridden by haproxy app pid
 		} else if regexp.MustCompile("node-\\d+").MatchString(d.Id) {
 			if node != nil {
 				t.Fatalf("multiple testapp node deploys running %s and %s", d.Id, node.Id)

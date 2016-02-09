@@ -62,7 +62,7 @@ const (
 	serverConfigFileName = "config.json"
 	haproxyConfig        = "haproxy.cfg"
 	haproxyPid           = "haproxy.pid"
-	appPid               = "app.pid"
+	appPid               = "PID_FILE"
 )
 
 type Config struct {
@@ -296,7 +296,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 		proc, running := procsByDeployId[deployId]
 		if pidOverride, err := s.getDeployPidOverride(deployId); err == nil {
 			if _, ok := procsByPid[pidOverride]; ok {
-				//found a process matching the app.pid override
+				//found a process matching the app pid override
 				proc, running = procsByPid[pidOverride]
 			}
 		}
@@ -462,7 +462,12 @@ func (s *ServerImpl) Stop(deployIdToStop string) error {
 	//kill the proc *after* removing it from the list so it doesn't auto-restart
 	if running {
 		if p, err := os.FindProcess(proc.Pid); err == nil {
-			p.Kill()
+			//try to kill by process group id so the whole bundle incl. children gets cleaned up
+			if pgid,pgerr := syscall.Getpgid(proc.Pid); pgerr == nil {
+				syscall.Kill(-pgid, 15) //minus is required
+			} else {
+				p.Kill()
+			}
 		} else {
 			return fmt.Errorf("Failed to kill pid %s", proc.Pid)
 		}
@@ -481,6 +486,7 @@ func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Applicati
 		return nil, nil, err
 	}
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid:true}
 	cmd.Dir = deployPath
 	detachProc(cmd)
 	return app, cmd, nil
