@@ -103,16 +103,28 @@ func (c *ClientImpl) Push() (string, error) {
 		return "", err
 	}
 
-	if err := c.runVisibleCmd(
-		"ssh", "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh,
-		"rsync", "-a", "--delete",
-		remoteLatestDir+"/", remoteDeployDir); err != nil {
+	if err := c.runRemoteCmd("rsync", "-a", "--delete", remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return "", err
 	}
 
 	c.info("done uploading")
 
+	postDeployCmd := c.app.PostDeployCmd()
+	if (postDeployCmd != "") {
+		cmd := fmt.Sprintf("cd %s; %s", remoteDeployDir, postDeployCmd)
+		if err := c.runRemoteCmd(cmd); err != nil {
+			return "", err
+		}
+		c.info("post deploy command completed");
+	}
+
 	return reply.DeployId, nil
+}
+
+func (c *ClientImpl) runRemoteCmd(command ...string) error {
+	sshArgs := []string{ "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh }
+	args := append(sshArgs, command...)
+	return c.runVisibleCmd("ssh", args...)
 }
 
 func (c *ClientImpl) runVisibleCmd(command string, args ...string) error {

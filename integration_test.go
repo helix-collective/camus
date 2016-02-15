@@ -16,6 +16,7 @@ import (
 type testClient struct {
 	t      *testing.T
 	client Client
+	remoteRootDir string
 }
 
 func (tc *testClient) Build() {
@@ -131,7 +132,7 @@ func startCamusWithConfig(t *testing.T, conf string) (*testClient, *os.Process) 
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	return &testClient{t, client}, server.Process
+	return &testClient{t, client, deployDir}, server.Process
 }
 
 func TestDeploy(t *testing.T) {
@@ -155,6 +156,14 @@ func TestDeploy(t *testing.T) {
 	}
 	if len(deploys) != len(oldDeploys)+1 {
 		t.Fatalf("expected %d deploys, but got %d", len(oldDeploys)+1, len(deploys))
+	}
+
+	//also test the post deploy cmd was run
+	yyyeh, err := ioutil.ReadFile(client.remoteRootDir + "/deploys/" + deployId + "/yyyeh")
+	if err != nil {
+		t.Fatal(err)
+	} else if (string(yyyeh) != "woo\n") {
+		t.Fatalf("PostDeployCmd failure, expected %s to %s", "woo", yyyeh)
 	}
 }
 

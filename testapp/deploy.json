@@ -2,6 +2,7 @@
   "Name": "MyApp",
   "BuildCmd": "./build.sh",
   "BuildOutputDir": "./build",
+  "PostDeployCmd": "echo 'woo' > yyyeh",
   "RunCmd": "node app.js %PORT%",
   "HealthEndpoint": "/status",
   "Targets": {

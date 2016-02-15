@@ -12,6 +12,8 @@ type Application interface {
 
 	BuildOutputDir() string
 
+	PostDeployCmd() string
+
 	RunCmd(port int) string
 
 	HealthEndpoint() string
@@ -38,6 +40,8 @@ type ApplicationDef struct {
 	BuildCmd string
 
 	BuildOutputDir string
+
+	PostDeployCmd string
 
 	// needs a %PORT% part for port subsitution
 	RunCmd string
@@ -116,6 +120,9 @@ func (a *AppImpl) Target(server string) *Target {
 
 func (a *AppImpl) BuildCmd() string {
 	return a.def.BuildCmd
+}
+func (a *AppImpl) PostDeployCmd() string {
+	return a.def.PostDeployCmd
 }
 func (a *AppImpl) BuildOutputDir() string {
 	return a.def.BuildOutputDir
