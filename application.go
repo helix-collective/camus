@@ -60,10 +60,12 @@ func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 		return nil, err
 	}
 
-	json.Unmarshal(data, &def)
-
 	errMsg := func(str string, args ...interface{}) (Application, error) {
 		return nil, fmt.Errorf("deploy.json: "+str, args...)
+	}
+
+	if err := json.Unmarshal(data, &def); err != nil {
+		return errMsg(fmt.Sprintf("Invalid json %s", err))
 	}
 
 	if isClient {
