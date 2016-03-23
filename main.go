@@ -18,6 +18,7 @@ var serverMode = flag.Bool("server", false, "If true, run as a server.")
 var runBackgroundCheck = flag.Bool("enforce", false, "Run background enforcer")
 var deployFile = flag.String("cfg", "deploy.json", "Deploy config file")
 var targetName = flag.String("target", "prod", "Target backend")
+var isLocalTest = flag.Bool("is-local-test", false, "Don't use ssh, and connect to a camus server running locally")
 
 func main() {
 	welcome()
@@ -52,7 +53,7 @@ func serverMain() {
 }
 
 func clientMain() {
-	client, err := NewClientImpl(*deployFile, *targetName)
+	client, err := NewClientImpl(*deployFile, *targetName, *isLocalTest)
 	if err != nil {
 		log.Fatal("NewClient:", err)
 	}

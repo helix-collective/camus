@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 )
 
 type Client interface {
@@ -27,9 +28,13 @@ type ClientImpl struct {
 	client *rpc.Client
 	target *Target
 	dir    string
+
+	// In test mode, connect to a camus server running on the same machine, and
+	// all 'remote commands' are executed locally (via bash), as opposed to via ssh
+	isLocalTest bool
 }
 
-func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
+func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*ClientImpl, error) {
 	app, err := ApplicationFromConfig(true, deployFile)
 	if err != nil {
 		return nil, err
@@ -40,7 +45,10 @@ func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
 		return nil, fmt.Errorf("Invalid target: '%s'", targetName)
 	}
 
-	localPort := setupChannel(target.Base, target.SshPort, target.Ssh)
+	localPort := target.Base
+	if !isLocalTest {
+		localPort = setupChannel(target.Base, target.SshPort, target.Ssh)
+	}
 
 	serverAddr := fmt.Sprintf("localhost:%d", localPort)
 	client, err := rpc.DialHTTP("tcp", serverAddr)
@@ -49,10 +57,11 @@ func NewClientImpl(deployFile string, targetName string) (*ClientImpl, error) {
 	}
 
 	return &ClientImpl{
-		app:    app,
-		client: client,
-		target: target,
-		dir:    path.Dir(deployFile),
+		app:         app,
+		client:      client,
+		target:      target,
+		dir:         path.Dir(deployFile),
+		isLocalTest: isLocalTest,
 	}, nil
 }
 
@@ -84,22 +93,24 @@ func (c *ClientImpl) Push() (string, error) {
 	remoteDeployDir := reply.Path
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
 
-	// TODO(koz): Delete this code when I fix ssh on my computer.
-	/*
-		if true {
-			err := c.runVisibleCmd("rsync", "-azv", "--delete",
-				localDeployDir+"/",
-				remoteDeployDir)
-			if err != nil {
-				return "", err
-			}
-			return reply.DeployId, nil
-		}
-	*/
-	if err := c.runVisibleCmd("rsync", "-azv", "--delete",
-		localDeployDir+"/",
-		"-e", fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no", c.target.SshPort),
-		c.target.Ssh+":"+remoteLatestDir); err != nil {
+	// Base rsync command
+	rsyncArgs := []string{
+		"-azv", "--delete",
+		localDeployDir + "/",
+	}
+
+	// Extra flags to rsync over ssh
+	if c.isLocalTest {
+		rsyncArgs = append(rsyncArgs, remoteLatestDir)
+	} else {
+		rsyncArgs = append(rsyncArgs, []string{
+			"-e",
+			fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no", c.target.SshPort),
+			c.target.Ssh + ":" + remoteLatestDir,
+		}...)
+	}
+
+	if err := c.runVisibleCmd("rsync", rsyncArgs...); err != nil {
 		return "", err
 	}
 
@@ -110,21 +121,29 @@ func (c *ClientImpl) Push() (string, error) {
 	c.info("done uploading")
 
 	postDeployCmd := c.app.PostDeployCmd()
-	if (postDeployCmd != "") {
+	if postDeployCmd != "" {
 		cmd := fmt.Sprintf("cd %s; %s", remoteDeployDir, postDeployCmd)
 		if err := c.runRemoteCmd(cmd); err != nil {
 			return "", err
 		}
-		c.info("post deploy command completed");
+		c.info("post deploy command completed")
 	}
 
 	return reply.DeployId, nil
 }
 
 func (c *ClientImpl) runRemoteCmd(command ...string) error {
-	sshArgs := []string{ "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(c.target.SshPort), c.target.Ssh }
-	args := append(sshArgs, command...)
-	return c.runVisibleCmd("ssh", args...)
+	if c.isLocalTest {
+		return c.runVisibleCmd("bash", "-c", strings.Join(command, " "))
+	} else {
+		sshArgs := []string{
+			"-o", "StrictHostKeyChecking=no",
+			"-p", strconv.Itoa(c.target.SshPort),
+			c.target.Ssh,
+		}
+		args := append(sshArgs, command...)
+		return c.runVisibleCmd("ssh", args...)
+	}
 }
 
 func (c *ClientImpl) runVisibleCmd(command string, args ...string) error {

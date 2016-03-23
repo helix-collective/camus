@@ -5,7 +5,11 @@ cd `dirname $0`
 FRONT="$1"
 APP="$2"
 
-TEMP=`mktemp`
+if [ $(uname) = "Darwin" ]; then
+  TEMP=`mktemp /tmp/haproxy-config.$$`
+else
+  TEMP=`mktemp`
+fi
 echo "storing config in $TEMP"
 
 cat haproxy.cfg.tpl | sed "s|%FRONTPORT%|$FRONT|g" | sed "s|%APPPORT%|$APP|g" > "$TEMP"

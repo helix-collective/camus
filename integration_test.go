@@ -2,20 +2,20 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 )
 
 type testClient struct {
-	t      *testing.T
-	client Client
+	t             *testing.T
+	client        Client
 	remoteRootDir string
 }
 
@@ -128,7 +128,8 @@ func startCamusWithConfig(t *testing.T, conf string) (*testClient, *os.Process) 
 	// Give the server time to start up.
 	time.Sleep(1 * time.Second)
 
-	client, err := NewClientImpl(conf, "prod")
+	isLocalTest := true
+	client, err := NewClientImpl(conf, "prod", isLocalTest)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
@@ -162,7 +163,7 @@ func TestDeploy(t *testing.T) {
 	yyyeh, err := ioutil.ReadFile(client.remoteRootDir + "/deploys/" + deployId + "/yyyeh")
 	if err != nil {
 		t.Fatal(err)
-	} else if (string(yyyeh) != "woo\n") {
+	} else if string(yyyeh) != "woo\n" {
 		t.Fatalf("PostDeployCmd failure, expected %s to %s", "woo", yyyeh)
 	}
 }
@@ -220,8 +221,8 @@ func TestPidRun(t *testing.T) {
 			}
 			testappHaproxy = d
 
-		//backend deploy app = original process, but overridden by haproxy app pid
 		} else if regexp.MustCompile("node-\\d+").MatchString(d.Id) {
+			//backend deploy app = original process, but overridden by haproxy app pid
 			if node != nil {
 				t.Fatalf("multiple testapp node deploys running %s and %s", d.Id, node.Id)
 			}
@@ -231,11 +232,11 @@ func TestPidRun(t *testing.T) {
 	if node == nil || testappHaproxy == nil {
 		t.Fatalf("expected to find both testapp node and testapp haproxy instances")
 	}
-	if node.Port != testappHaproxy.Port + 20 {
+	if node.Port != testappHaproxy.Port+20 {
 		t.Fatalf("expected testapp haproxy port %d to be at 20 port offset from node %d", testappHaproxy.Port, node.Port)
 	}
 
-	data2 := getLocalhost(t, port + 20, "")
+	data2 := getLocalhost(t, port+20, "")
 	expected := "Hello World!"
 	if string(data) != expected || string(data2) != expected {
 		t.Fatalf("expected %s, got %s", expected, data)
@@ -273,7 +274,7 @@ func TestStop(t *testing.T) {
 	url := fmt.Sprintf("http://localhost:%d", port)
 	if _, geterr := http.Get(url); geterr == nil {
 		t.Fatalf("process not stopped")
-	} else if !strings.Contains(geterr.Error(), "connection reset by peer")  {
+	} else if !strings.Contains(geterr.Error(), "connection reset by peer") {
 		t.Fatalf("something failed, but it wasn't a reset connection: %s", geterr)
 	}
 }
