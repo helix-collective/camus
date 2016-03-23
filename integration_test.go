@@ -68,6 +68,13 @@ func (tc *testClient) SetMainByPort(port int) {
 	}
 }
 
+func (tc *testClient) SetMainById(id string) {
+	err := tc.client.SetMainById(id)
+	if err != nil {
+		tc.t.Fatalf("set main by id: %s\n", err)
+	}
+}
+
 func run(t *testing.T, cmd string) *exec.Cmd {
 	return runInDir(t, cmd, "")
 }
@@ -328,6 +335,14 @@ func TestHaproxy(t *testing.T) {
 	expectGet(t, haproxyPort, "/file", "version 1")
 	client.SetMainByPort(port2)
 	expectGet(t, haproxyPort, "/file", "version 2")
+
+	// Same tests as above, but set using deploy id
+	client.SetMainById(v1DeployId)
+	expectGet(t, haproxyPort, "/file", "version 1")
+	client.SetMainById(v2DeployId)
+	expectGet(t, haproxyPort, "/file", "version 2")
+	client.SetMainById(v1DeployId)
+	expectGet(t, haproxyPort, "/file", "version 1")
 }
 
 // TestTracked tests that the Tracked field is only true when a deploy is

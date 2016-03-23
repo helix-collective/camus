@@ -16,7 +16,13 @@ type Client interface {
 	Push() (string, error)
 	// Run runs the specified deploy, returning the port it is listening on.
 	Run(deployId string) (int, error)
+
+	// Sets active deploy by port
 	SetMainByPort(port int) error
+
+	// Sets active deploy using the deploy id
+	SetMainById(string) error
+
 	ListDeploys() ([]*Deploy, error)
 	Stop(deployId string) error
 	KillUnknownProcesses()
@@ -176,6 +182,17 @@ func (c *ClientImpl) SetMainByPort(port int) error {
 	req := &SetMainPortRequest{port}
 	var reply SetMainPortReply
 	err := c.client.Call("RpcServer.SetMainByPort", req, &reply)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ClientImpl) SetMainById(id string) error {
+	req := &SetMainByIdRequest{id}
+	var reply SetMainByIdReply
+	err := c.client.Call("RpcServer.SetMainById", req, &reply)
 	if err != nil {
 		return err
 	}

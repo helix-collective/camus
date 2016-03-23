@@ -35,6 +35,18 @@ func (s *RpcServer) SetMainByPort(arg SetMainPortRequest,
 
 ////////////////
 
+type SetMainByIdRequest struct {
+	Id string
+}
+type SetMainByIdReply struct{}
+
+func (s *RpcServer) SetMainById(arg SetMainByIdRequest,
+	reply *SetMainByIdReply) error {
+	return s.server.SetMainById(arg.Id)
+}
+
+////////////////
+
 type RunRequest struct {
 	DeployId string
 }

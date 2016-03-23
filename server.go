@@ -409,6 +409,16 @@ func (s *ServerImpl) SetMainByPort(port int) error {
 	return s.reloadHaproxy(port)
 }
 
+func (s *ServerImpl) SetMainById(id string) error {
+	for port, deployId := range s.config.Ports {
+		if deployId == id {
+			return s.reloadHaproxy(port)
+		}
+	}
+
+	return fmt.Errorf("No deploy %s, run 'list' to see valid deploys", id)
+}
+
 func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
 	for port, deployId := range s.config.Ports {
 		if deployIdToRun == deployId {
@@ -463,7 +473,7 @@ func (s *ServerImpl) Stop(deployIdToStop string) error {
 	if running {
 		if p, err := os.FindProcess(proc.Pid); err == nil {
 			//try to kill by process group id so the whole bundle incl. children gets cleaned up
-			if pgid,pgerr := syscall.Getpgid(proc.Pid); pgerr == nil {
+			if pgid, pgerr := syscall.Getpgid(proc.Pid); pgerr == nil {
 				syscall.Kill(-pgid, 15) //minus is required
 			} else {
 				p.Kill()
@@ -486,7 +496,7 @@ func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Applicati
 		return nil, nil, err
 	}
 	cmd := exec.Command("sh", "-c", app.RunCmd(port))
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid:true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = deployPath
 	detachProc(cmd)
 	return app, cmd, nil
@@ -498,7 +508,7 @@ func detachProc(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
-var MAX_STARTUP_TIME = time.Duration(10) * time.Second
+var MAX_STARTUP_TIME = time.Duration(20) * time.Second
 var MAX_HEALTH_CHECK_TIME = time.Duration(2) * time.Second
 var STARTUP_HEALTH_CHECK_INTERVAL = time.Duration(100) * time.Millisecond
 

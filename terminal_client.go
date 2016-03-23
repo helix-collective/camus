@@ -86,17 +86,29 @@ func (c *TerminalClient) runCmd() error {
 }
 
 func (c *TerminalClient) setCmd() error {
-	portStr := c.flags.Arg(1)
-	port, err := strconv.Atoi(portStr)
-	if err != nil || port <= 0 {
+	deployIdOrPort := c.flags.Arg(1)
+	if deployIdOrPort == "" {
+		return errors.New("Missing deploy id or port")
+	}
+
+	port, err := strconv.Atoi(deployIdOrPort)
+	isPort := err == nil
+
+	if isPort && port <= 0 {
 		return errors.New("Invalid port")
 	}
 
-	err = c.client.SetMainByPort(port)
+	if isPort {
+		err = c.client.SetMainByPort(port)
+	} else {
+		err = c.client.SetMainById(deployIdOrPort)
+	}
+
 	if err != nil {
 		return err
 	}
-	println("Port set")
+
+	println("Active deploy set")
 	return nil
 }
 
