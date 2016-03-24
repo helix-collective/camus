@@ -13,7 +13,7 @@ import (
 
 type Client interface {
 	Build() (string, error)
-	Push() (string, error)
+	Push(deployId string) error
 	// Run runs the specified deploy, returning the port it is listening on.
 	Run(deployId string) (int, error)
 
@@ -84,19 +84,19 @@ func (c *ClientImpl) Build() (string, error) {
 	return "dummy", nil
 }
 
-func (c *ClientImpl) Push() (string, error) {
-	req := &NewDeployDirRequest{}
-	var reply NewDeployDirResponse
+func (c *ClientImpl) Push(deployId string) error {
+	req := &GetDeploysPathRequest{}
+	var reply GetDeploysPathReply
 
-	err := c.client.Call("RpcServer.NewDeployDir", req, &reply)
+	err := c.client.Call("RpcServer.GetDeploysPath", req, &reply)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	c.info("uploading package...")
 
 	localDeployDir := c.app.BuildOutputDir()
-	remoteDeployDir := reply.Path
+	remoteDeployDir := path.Join(reply.Path, deployId)
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
 
 	// Base rsync command
@@ -117,11 +117,11 @@ func (c *ClientImpl) Push() (string, error) {
 	}
 
 	if err := c.runVisibleCmd("rsync", rsyncArgs...); err != nil {
-		return "", err
+		return err
 	}
 
 	if err := c.runRemoteCmd("rsync", "-a", "--delete", remoteLatestDir+"/", remoteDeployDir); err != nil {
-		return "", err
+		return err
 	}
 
 	c.info("done uploading")
@@ -130,12 +130,12 @@ func (c *ClientImpl) Push() (string, error) {
 	if postDeployCmd != "" {
 		cmd := fmt.Sprintf("cd %s; %s", remoteDeployDir, postDeployCmd)
 		if err := c.runRemoteCmd(cmd); err != nil {
-			return "", err
+			return err
 		}
 		c.info("post deploy command completed")
 	}
 
-	return reply.DeployId, nil
+	return nil
 }
 
 func (c *ClientImpl) runRemoteCmd(command ...string) error {

@@ -152,6 +152,9 @@ func (s *ServerImpl) NewDeployDir() NewDeployDirResponse {
 	}
 }
 
+func (s *ServerImpl) DeploysPath() string {
+	return s.deploysPath
+}
 func (s *ServerImpl) deployDir(deployId string) string {
 	return path.Join(s.deploysPath, deployId)
 }

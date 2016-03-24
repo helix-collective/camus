@@ -35,7 +35,8 @@ func (tc *testClient) ListDeploys() []*Deploy {
 }
 
 func (tc *testClient) Push() string {
-	deployId, err := tc.client.Push()
+	deployId := NewDeployId()
+	err := tc.client.Push(deployId)
 	if err != nil {
 		tc.t.Fatalf("client push: %s", err)
 	}

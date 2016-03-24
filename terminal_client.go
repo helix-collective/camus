@@ -59,15 +59,15 @@ func (c *TerminalClient) helpCmd() error {
 }
 
 func (c *TerminalClient) deployCmd() error {
-	_, err := c.client.Build()
-	if err != nil {
+	if _, err := c.client.Build(); err != nil {
 		return err
 	}
 
-	deployId, err := c.client.Push()
-	if err != nil {
+	deployId := NewDeployId()
+	if err := c.client.Push(deployId); err != nil {
 		return err
 	}
+
 	fmt.Printf("Deployed '%s'\n", deployId)
 	return nil
 }

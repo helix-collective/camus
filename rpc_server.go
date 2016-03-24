@@ -82,6 +82,18 @@ func (s *RpcServer) NewDeployDir(arg NewDeployDirRequest, reply *NewDeployDirRes
 
 ////////////////
 
+type GetDeploysPathRequest struct{}
+type GetDeploysPathReply struct {
+	Path string
+}
+
+func (s *RpcServer) GetDeploysPath(arg GetDeploysPathRequest, reply *GetDeploysPathReply) error {
+	reply.Path = s.server.DeploysPath()
+	return nil
+}
+
+////////////////
+
 type StopDeployRequest struct {
 	DeployId string
 }
