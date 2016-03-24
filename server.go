@@ -144,13 +144,11 @@ func NewServerImpl(
 }
 
 func (s *ServerImpl) NewDeployDir() NewDeployDirResponse {
-	t := time.Now()
-	timestamp := fmt.Sprintf("%d-%02d-%02d-%02d-%02d-%02d",
-		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
+	deployId := NewDeployId()
 
 	return NewDeployDirResponse{
-		DeployId: timestamp,
-		Path:     s.deployDir(timestamp),
+		DeployId: deployId,
+		Path:     s.deployDir(deployId),
 	}
 }
 

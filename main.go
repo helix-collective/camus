@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -21,6 +22,10 @@ var targetName = flag.String("target", "prod", "Target backend")
 var isLocalTest = flag.Bool("is-local-test", false, "Don't use ssh, and connect to a camus server running locally")
 
 func main() {
+	// seed random number generator
+	t := time.Now().UTC()
+	rand.Seed(t.UnixNano())
+
 	welcome()
 	flag.Parse()
 	if *serverMode {
