@@ -30,7 +30,7 @@ type Client interface {
 	Shutdown()
 }
 
-type ClientImpl struct {
+type SingleServerClient struct {
 	app    Application
 	client *rpc.Client
 	target *Target
@@ -41,7 +41,7 @@ type ClientImpl struct {
 	isLocalTest bool
 }
 
-func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*ClientImpl, error) {
+func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*SingleServerClient, error) {
 	app, err := ApplicationFromConfig(true, deployFile)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*Cli
 		return nil, fmt.Errorf("Dialing: %s", err)
 	}
 
-	return &ClientImpl{
+	return &SingleServerClient{
 		app:         app,
 		client:      client,
 		target:      target,
@@ -72,7 +72,7 @@ func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*Cli
 	}, nil
 }
 
-func (c *ClientImpl) Build() (string, error) {
+func (c *SingleServerClient) Build() (string, error) {
 	cmd := exec.Command("sh", "-c", c.app.BuildCmd())
 	cmd.Dir = c.dir
 	cmd.Stdout = os.Stdout
@@ -85,7 +85,7 @@ func (c *ClientImpl) Build() (string, error) {
 	return "dummy", nil
 }
 
-func (c *ClientImpl) Push(deployId string) error {
+func (c *SingleServerClient) Push(deployId string) error {
 	req := &GetDeploysPathRequest{}
 	var reply GetDeploysPathReply
 
@@ -139,7 +139,7 @@ func (c *ClientImpl) Push(deployId string) error {
 	return nil
 }
 
-func (c *ClientImpl) runRemoteCmd(command ...string) error {
+func (c *SingleServerClient) runRemoteCmd(command ...string) error {
 	if c.isLocalTest {
 		return c.runVisibleCmd("bash", "-c", strings.Join(command, " "))
 	} else {
@@ -153,7 +153,7 @@ func (c *ClientImpl) runRemoteCmd(command ...string) error {
 	}
 }
 
-func (c *ClientImpl) runVisibleCmd(command string, args ...string) error {
+func (c *SingleServerClient) runVisibleCmd(command string, args ...string) error {
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -162,7 +162,7 @@ func (c *ClientImpl) runVisibleCmd(command string, args ...string) error {
 	return cmd.Run()
 }
 
-func (c *ClientImpl) Run(deployId string) (int, error) {
+func (c *SingleServerClient) Run(deployId string) (int, error) {
 	req := &RunRequest{deployId}
 	var reply RunReply
 	err := c.client.Call("RpcServer.Run", req, &reply)
@@ -173,13 +173,13 @@ func (c *ClientImpl) Run(deployId string) (int, error) {
 	return reply.Port, nil
 }
 
-func (c *ClientImpl) Stop(deployId string) error {
+func (c *SingleServerClient) Stop(deployId string) error {
 	req := &StopDeployRequest{deployId}
 	var reply StopDeployResponse
 	return c.client.Call("RpcServer.StopDeploy", &req, &reply)
 }
 
-func (c *ClientImpl) SetMainByPort(port int) error {
+func (c *SingleServerClient) SetMainByPort(port int) error {
 	req := &SetMainPortRequest{port}
 	var reply SetMainPortReply
 	err := c.client.Call("RpcServer.SetMainByPort", req, &reply)
@@ -190,7 +190,7 @@ func (c *ClientImpl) SetMainByPort(port int) error {
 	return nil
 }
 
-func (c *ClientImpl) SetMainById(id string) error {
+func (c *SingleServerClient) SetMainById(id string) error {
 	req := &SetMainByIdRequest{id}
 	var reply SetMainByIdReply
 	err := c.client.Call("RpcServer.SetMainById", req, &reply)
@@ -201,7 +201,7 @@ func (c *ClientImpl) SetMainById(id string) error {
 	return nil
 }
 
-func (c *ClientImpl) ListDeploys() ([]*Deploy, error) {
+func (c *SingleServerClient) ListDeploys() ([]*Deploy, error) {
 	args := &ListDeploysRequest{}
 	var reply ListDeploysReply
 	if err := c.client.Call("RpcServer.ListDeploys", args, &reply); err != nil {
@@ -211,7 +211,7 @@ func (c *ClientImpl) ListDeploys() ([]*Deploy, error) {
 	return reply.Deploys, nil
 }
 
-func (c *ClientImpl) info(args ...interface{}) {
+func (c *SingleServerClient) info(args ...interface{}) {
 	log.Println(prepend("    client: ", args)...)
 }
 
@@ -260,13 +260,13 @@ func setupChannel(remotePort int, sshPort int, login string) int {
 	return localPort
 }
 
-func (c *ClientImpl) KillUnknownProcesses() {
+func (c *SingleServerClient) KillUnknownProcesses() {
 	var args KillUnknownProcessesRequest
 	var reply KillUnknownProcessesResponse
 	c.client.Call("RpcServer.KillUnknownProcesses", &args, &reply)
 }
 
-func (c *ClientImpl) Shutdown() {
+func (c *SingleServerClient) Shutdown() {
 	var args ShutdownRequest
 	var reply ShutdownResponse
 	c.client.Call("RpcServer.Shutdown", &args, &reply)
