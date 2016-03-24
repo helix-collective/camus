@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/rpc"
 	"os"
 	"os/exec"
@@ -218,8 +219,25 @@ func prepend(item interface{}, items []interface{}) []interface{} {
 	return append([]interface{}{item}, items...)
 }
 
+func getFreeLocalPort() (port int) {
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		log.Fatalf("Couldn't get free local port (to setup ssh tunnel)", err)
+	}
+	parts := strings.Split(l.Addr().String(), ":")
+	l.Close()
+
+	port, err = strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		log.Fatalf("Couldn't parse port from", parts[len(parts)-1], err)
+	}
+
+	return
+}
+
 func setupChannel(remotePort int, sshPort int, login string) int {
-	localPort := 9847 // todo: Just get some free port
+	localPort := getFreeLocalPort()
+
 	cmd := exec.Command(
 		"ssh", "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(sshPort), login,
 		fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
