@@ -20,8 +20,7 @@ type testClient struct {
 }
 
 func (tc *testClient) Build() {
-	_, err := tc.client.Build()
-	if err != nil {
+	if err := tc.client.Build(); err != nil {
 		tc.t.Fatalf("client build: %s", err)
 	}
 }

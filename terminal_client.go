@@ -59,7 +59,7 @@ func (c *TerminalClient) helpCmd() error {
 }
 
 func (c *TerminalClient) deployCmd() error {
-	if _, err := c.client.Build(); err != nil {
+	if err := c.client.Build(); err != nil {
 		return err
 	}
 

@@ -13,7 +13,7 @@ import (
 )
 
 type Client interface {
-	Build() (string, error)
+	Build() error
 	Push(deployId string) error
 	// Run runs the specified deploy, returning the port it is listening on.
 	Run(deployId string) error
@@ -72,17 +72,17 @@ func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*Sin
 	}, nil
 }
 
-func (c *SingleServerClient) Build() (string, error) {
+func (c *SingleServerClient) Build() error {
 	cmd := exec.Command("sh", "-c", c.app.BuildCmd())
 	cmd.Dir = c.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return "", err
+		return err
 	}
 
-	return "dummy", nil
+	return nil
 }
 
 func (c *SingleServerClient) Push(deployId string) error {
