@@ -34,7 +34,7 @@ type SingleServerClient struct {
 	app    Application
 	client *rpc.Client
 	target *Target
-	dir    string
+	appDir string
 
 	// In test mode, connect to a camus server running on the same machine, and
 	// all 'remote commands' are executed locally (via bash), as opposed to via ssh
@@ -67,14 +67,14 @@ func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*Sin
 		app:         app,
 		client:      client,
 		target:      target,
-		dir:         path.Dir(deployFile),
+		appDir:      path.Dir(deployFile),
 		isLocalTest: isLocalTest,
 	}, nil
 }
 
 func (c *SingleServerClient) Build() error {
 	cmd := exec.Command("sh", "-c", c.app.BuildCmd())
-	cmd.Dir = c.dir
+	cmd.Dir = c.appDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -157,7 +157,7 @@ func (c *SingleServerClient) runVisibleCmd(command string, args ...string) error
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Dir = c.dir
+	cmd.Dir = c.appDir
 	fmt.Printf("exec %s\n", cmd.Args)
 	return cmd.Run()
 }
