@@ -47,12 +47,10 @@ func (tc *testClient) Shutdown() {
 	tc.client.Shutdown()
 }
 
-func (tc *testClient) Run(deployId string) int {
-	port, err := tc.client.Run(deployId)
-	if err != nil {
+func (tc *testClient) Run(deployId string) {
+	if err := tc.client.Run(deployId); err != nil {
 		tc.t.Fatalf("client run: %s\n", err)
 	}
-	return port
 }
 
 func (tc *testClient) Stop(deployId string) {
@@ -73,6 +71,33 @@ func (tc *testClient) SetMainById(id string) {
 	err := tc.client.SetMainById(id)
 	if err != nil {
 		tc.t.Fatalf("set main by id: %s\n", err)
+	}
+}
+
+// For each matching deploy, ensure
+//   1. It's running
+//   2. The result of performing a GET query on 'path' is as expected
+func (tc *testClient) checkDeploy(deployId string, path string, expected string) {
+	deploys := tc.ListDeploys()
+
+	found := false
+	for _, d := range deploys {
+		if d.Id == deployId {
+			found = true
+
+			if d.Port == -1 {
+				tc.t.Fatalf("Deploy %s has no assigned port (unexpected)", deployId)
+			}
+
+			data := getLocalhost(tc.t, d.Port, path)
+			if string(data) != expected {
+				tc.t.Fatalf("Query on '%s' for deploy %s (running on port %d) failed. Expected %s, got %s", path, deployId, d.Port, expected, data)
+			}
+		}
+	}
+
+	if !found {
+		tc.t.Fatalf("no deploy with id %s found", deployId)
 	}
 }
 
@@ -198,12 +223,8 @@ func TestRun(t *testing.T) {
 
 	client.Build()
 	deployId := client.Push()
-	port := client.Run(deployId)
-	data := getLocalhost(t, port, "")
-	expected := "Hello World!"
-	if string(data) != expected {
-		t.Fatalf("expected %s, got %s", expected, data)
-	}
+	client.Run(deployId)
+	client.checkDeploy(deployId, "", "Hello World!")
 }
 
 func TestPidRun(t *testing.T) {
@@ -211,10 +232,12 @@ func TestPidRun(t *testing.T) {
 	defer server.Kill()
 	defer client.Shutdown()
 
+	expected := "Hello World!"
+
 	client.Build()
 	deployId := client.Push()
-	port := client.Run(deployId)
-	data := getLocalhost(t, port, "")
+	client.Run(deployId)
+	client.checkDeploy(deployId, "", expected)
 
 	//TODO(tim) nice way to test Enforce() in out-of-process server? :s
 	deploys := client.ListDeploys()
@@ -237,17 +260,18 @@ func TestPidRun(t *testing.T) {
 			node = d
 		}
 	}
+
 	if node == nil || testappHaproxy == nil {
 		t.Fatalf("expected to find both testapp node and testapp haproxy instances")
 	}
+
 	if node.Port != testappHaproxy.Port+20 {
 		t.Fatalf("expected testapp haproxy port %d to be at 20 port offset from node %d", testappHaproxy.Port, node.Port)
 	}
 
-	data2 := getLocalhost(t, port+20, "")
-	expected := "Hello World!"
-	if string(data) != expected || string(data2) != expected {
-		t.Fatalf("expected %s, got %s", expected, data)
+	data := getLocalhost(t, testappHaproxy.Port, "")
+	if string(data) != expected {
+		t.Fatalf("Query result on %s via haproxy failed. Expected %s, got %s", deployId, expected, data)
 	}
 }
 
@@ -263,16 +287,31 @@ func TestStop(t *testing.T) {
 		t.Fatalf("expected error when stopping non-running deploy")
 	}
 
-	port := client.Run(deployId)
+	client.Run(deployId)
 
 	if err := client.client.Stop("something made up"); err == nil {
 		t.Fatalf("expected error when stopping non-existent deploy")
 	}
 
-	data := getLocalhost(t, port, "")
-	expected := "Hello World!"
-	if string(data) != expected {
-		t.Fatalf("expected %s, got %s", expected, data)
+	client.checkDeploy(deployId, "", "Hello World!")
+
+	// get port, so we can check later that the running process was actually
+	// stopped
+	found := false
+	port := -1
+	for _, d := range client.ListDeploys() {
+		if d.Id == deployId && found {
+			t.Fatalf("Multiple matches for deploy id %s (expected 1)", deployId)
+		}
+
+		if d.Id == deployId {
+			found = true
+			port = d.Port
+		}
+	}
+
+	if !found {
+		t.Fatalf("no deploy with id %s found. Shouldn't disappear from deploy list (should just be stopped)", deployId)
 	}
 
 	client.Stop(deployId)
@@ -311,39 +350,43 @@ func TestHaproxy(t *testing.T) {
 	client.Build()
 	v1DeployId := client.Push()
 
-	// XXX(koz): Hilariously, as we choose ids based on the current timestamp
-	// to the second, pushing twice in quick succession here breaks as we
-	// generate the same deployId. For now fix by waiting a second, but
-	// obviously we should do something smarter like accept a label, or add a
-	// .2 suffix, etc.
-	time.Sleep(1 * time.Second)
-
 	writeDataIntoTestapp(t, "version 2")
 	client.Build()
 	v2DeployId := client.Push()
 
-	port1 := client.Run(v1DeployId)
-	port2 := client.Run(v2DeployId)
+	client.Run(v1DeployId)
+	client.Run(v2DeployId)
 
-	expectGet(t, port1, "/file", "version 1")
-	expectGet(t, port2, "/file", "version 2")
+	client.checkDeploy(v1DeployId, "/file", "version 1")
+	client.checkDeploy(v2DeployId, "/file", "version 2")
 
 	// TODO(koz): Don't hardcode the haproxy port.
 	haproxyPort := 8098
-	client.SetMainByPort(port2)
-	expectGet(t, haproxyPort, "/file", "version 2")
-	client.SetMainByPort(port1)
-	expectGet(t, haproxyPort, "/file", "version 1")
-	client.SetMainByPort(port2)
-	expectGet(t, haproxyPort, "/file", "version 2")
-
-	// Same tests as above, but set using deploy id
 	client.SetMainById(v1DeployId)
 	expectGet(t, haproxyPort, "/file", "version 1")
 	client.SetMainById(v2DeployId)
 	expectGet(t, haproxyPort, "/file", "version 2")
 	client.SetMainById(v1DeployId)
 	expectGet(t, haproxyPort, "/file", "version 1")
+
+	// Same test as above set via port instead of deploy id
+	v1Port := -1
+	v2Port := -1
+	for _, d := range client.ListDeploys() {
+		if d.Id == v1DeployId {
+			v1Port = d.Port
+		}
+
+		if d.Id == v2DeployId {
+			v2Port = d.Port
+		}
+	}
+	client.SetMainByPort(v2Port)
+	expectGet(t, haproxyPort, "/file", "version 2")
+	client.SetMainByPort(v1Port)
+	expectGet(t, haproxyPort, "/file", "version 1")
+	client.SetMainByPort(v2Port)
+	expectGet(t, haproxyPort, "/file", "version 2")
 }
 
 // TestTracked tests that the Tracked field is only true when a deploy is
@@ -397,14 +440,12 @@ func TestPort(t *testing.T) {
 
 	client.Build()
 	deployId := client.Push()
-	port := client.Run(deployId)
+	client.Run(deployId)
 	deploys := client.ListDeploys()
 	if len(deploys) != 1 {
 		t.Fatalf("expected exactly 1 deploy, got %d", len(deploys))
 	}
-	if deploys[0].Port != port {
-		t.Fatalf("expected port to be %d, but is %d", port, deploys[0].Port)
-	}
+	port := deploys[0].Port
 	if deploys[0].Health != 200 {
 		t.Fatalf("expected health to be %d, but is %d", 200, deploys[0].Health)
 	}

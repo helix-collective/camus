@@ -16,7 +16,7 @@ type Client interface {
 	Build() (string, error)
 	Push(deployId string) error
 	// Run runs the specified deploy, returning the port it is listening on.
-	Run(deployId string) (int, error)
+	Run(deployId string) error
 
 	// Sets active deploy by port
 	SetMainByPort(port int) error
@@ -162,15 +162,15 @@ func (c *SingleServerClient) runVisibleCmd(command string, args ...string) error
 	return cmd.Run()
 }
 
-func (c *SingleServerClient) Run(deployId string) (int, error) {
+func (c *SingleServerClient) Run(deployId string) error {
 	req := &RunRequest{deployId}
 	var reply RunReply
 	err := c.client.Call("RpcServer.Run", req, &reply)
 	if err != nil {
-		return -1, err
+		return err
 	}
 
-	return reply.Port, nil
+	return nil
 }
 
 func (c *SingleServerClient) Stop(deployId string) error {

@@ -77,11 +77,9 @@ func (c *TerminalClient) runCmd() error {
 	if deployId == "" {
 		return errors.New("Missing deploy id")
 	}
-	port, err := c.client.Run(deployId)
-	if err != nil {
+	if err := c.client.Run(deployId); err != nil {
 		return err
 	}
-	println(port)
 	return nil
 }
 
