@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -140,32 +141,80 @@ func findDeployById(deployId string, deploys []*Deploy) bool {
 }
 
 func startCamus(t *testing.T) (*testClient, *os.Process) {
-	return startCamusWithConfig(t, "testapp/deploy.json")
+	return startCamusWithConfig(t, "prod", "testapp/deploy.json")
 }
 
-func startCamusWithConfig(t *testing.T, conf string) (*testClient, *os.Process) {
-	cwd, err := filepath.Abs(".")
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
+func startCamusWithConfig(t *testing.T, targetName TargetName, confFile string) (*testClient, *os.Process) {
+	run(t, "go build")
+
+	deployDir := createTempDir(t)
+	server := startServer(t, deployDir, targetName, confFile)
+	client := startClient(t, deployDir, targetName, confFile)
+
+	return client, server
+}
+
+func createTempDir(t *testing.T) string {
 	deployDir, err := ioutil.TempDir("/tmp", "camustest-")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %s\n", err)
 	}
-	run(t, "go build")
 
-	// We start a new server process instead of running it here to avoid the
-	// complexities of shutting down an HTTP server in-process in go.
-	server := startInDir(t, cwd+"/camus -server", deployDir)
-	// Give the server time to start up.
-	time.Sleep(1 * time.Second)
+	return deployDir
+}
+
+func startClient(
+	t *testing.T,
+	remoteRootDir string,
+	targetName TargetName,
+	conf string) *testClient {
 
 	isLocalTest := true
-	client, err := NewClientImpl(conf, "prod", isLocalTest)
+	client, err := NewClient(conf, targetName, isLocalTest)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
-	return &testClient{t, client, deployDir}, server.Process
+
+	return &testClient{t, client, remoteRootDir}
+}
+
+func startServer(
+	t *testing.T,
+	deployDir string,
+	name TargetName,
+	confFile string) *os.Process {
+
+	var def ApplicationDef
+
+	data, err := ioutil.ReadFile(confFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := json.Unmarshal(data, &def); err != nil {
+		t.Fatalf("%s, Invalid json %s", confFile, err)
+	}
+
+	cwd, err := filepath.Abs(".")
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	if _, ok := def.Targets[name]; !ok {
+		t.Fatalf("No target with name %s in %s", name, confFile)
+	}
+
+	// We start a new server process instead of running it here to avoid the
+	// complexities of shutting down an HTTP server in-process in go.
+	server := startInDir(
+		t,
+		fmt.Sprintf("%s/camus -server -port %d", cwd, def.Targets[name].Base),
+		deployDir)
+
+	// Give the server time to start up.
+	time.Sleep(1 * time.Second)
+
+	return server.Process
 }
 
 func TestDeploy(t *testing.T) {
@@ -227,7 +276,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestPidRun(t *testing.T) {
-	client, server := startCamusWithConfig(t, "testapp/deploy2.json")
+	client, server := startCamusWithConfig(t, "prod", "testapp/deploy2.json")
 	defer server.Kill()
 	defer client.Shutdown()
 
@@ -386,6 +435,41 @@ func TestHaproxy(t *testing.T) {
 	expectGet(t, haproxyPort, "/file", "version 1")
 	client.SetMainByPort(v2Port)
 	expectGet(t, haproxyPort, "/file", "version 2")
+}
+
+func TestMultiserver(t *testing.T) {
+	run(t, "go build")
+
+	deployDir := createTempDir(t)
+	server1 := startServer(t, deployDir, "sydney-az1", "testapp/deploy.json")
+	server2 := startServer(t, deployDir, "sydney-az2", "testapp/deploy.json")
+	client := startClient(t, deployDir, "sydney-multiserver", "testapp/deploy.json")
+
+	defer server1.Kill()
+	defer server2.Kill()
+	defer client.Shutdown()
+
+	client.Build()
+	deployId := client.Push()
+	deploys := client.ListDeploys()
+	if len(deploys) != 2 {
+		t.Fatalf("expected exactly 2 deploys, got %d", len(deploys))
+	}
+
+	client.Run(deployId)
+
+	deploys = client.ListDeploys()
+	if len(deploys) != 2 {
+		t.Fatalf("expected exactly 2 deploys after running %s, got %d", deployId, len(deploys))
+	}
+
+	// All deploys should be running
+	for _, d := range deploys {
+		_, err := os.FindProcess(d.Pid)
+		if err != nil {
+			t.Fatalf("failed to find the server process")
+		}
+	}
 }
 
 // TestTracked tests that the Tracked field is only true when a deploy is

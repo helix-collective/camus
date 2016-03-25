@@ -9,6 +9,13 @@
     "prod": {
       "Ssh": "localhost",
       "Base": 8000
-    }
+    },
+
+    "sydney-az1": { "Ssh": "localhost", "Base": 8000 },
+    "sydney-az2": { "Ssh": "localhost", "Base": 7000 }
+  },
+
+  "GroupTargets": {
+    "sydney-multiserver": ["sydney-az1", "sydney-az2"]
   }
 }

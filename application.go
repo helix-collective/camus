@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+type TargetName string
+
 type Application interface {
 	BuildCmd() string
 
@@ -19,7 +21,7 @@ type Application interface {
 	HealthEndpoint() string
 
 	// e.g. prod -> Target{...}
-	Target(server string) *Target
+	Targets(name TargetName) []*Target
 }
 
 type AppImpl struct {
@@ -49,7 +51,11 @@ type ApplicationDef struct {
 	HealthEndpoint string
 
 	// e.g. user@host  (no path)
-	Targets map[string]*Target
+	Targets map[TargetName]*Target
+
+	// Maps a name to a list of targets. Camu will then perform all
+	// specified actions on all targets
+	GroupTargets map[TargetName][]TargetName
 }
 
 func ApplicationFromConfig(isClient bool, file string) (Application, error) {
@@ -94,7 +100,19 @@ func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 		}
 
 		if !foundTarget {
-			return errMsg("No targets specified")
+			return errMsg("No single targets specified (need at least one)")
+		}
+
+		for name, group := range def.GroupTargets {
+			if _, ok := def.Targets[name]; ok {
+				return errMsg("%s appears as a target name in both GroupTargs and single Targets (target names must be unique across both maps)")
+			}
+
+			for _, name := range group {
+				if _, ok := def.Targets[name]; !ok {
+					return errMsg("Expected %s to appear as an entry in 'Targets'. All target names in a target group list must be specified as a stand-alone target", name)
+				}
+			}
 		}
 	}
 
@@ -116,8 +134,19 @@ func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 func (a *AppImpl) RunCmd(port int) string {
 	return strings.Replace(a.def.RunCmd, "%PORT%", fmt.Sprintf("%d", port), -1)
 }
-func (a *AppImpl) Target(server string) *Target {
-	return a.def.Targets[server]
+func (a *AppImpl) Targets(name TargetName) (targets []*Target) {
+	if t, ok := a.def.Targets[name]; ok {
+		return []*Target{t}
+	}
+
+	ts := []*Target{}
+	if targetNames, ok := a.def.GroupTargets[name]; ok {
+		for _, targetName := range targetNames {
+			ts = append(ts, a.def.Targets[targetName])
+		}
+	}
+
+	return ts
 }
 
 func (a *AppImpl) BuildCmd() string {

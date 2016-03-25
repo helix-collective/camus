@@ -41,48 +41,56 @@ type SingleServerClient struct {
 	isLocalTest bool
 }
 
-func NewClientImpl(deployFile string, targetName string, isLocalTest bool) (*SingleServerClient, error) {
+// Client which communicates with multiple underlying servers at once. Used if
+// the target is actually a group of servers
+type MultiServerClient struct {
+	app     Application
+	appDir  string
+	clients []Client
+}
+
+func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*MultiServerClient, error) {
 	app, err := ApplicationFromConfig(true, deployFile)
 	if err != nil {
 		return nil, err
 	}
 
-	target := app.Target(targetName)
-	if target == nil {
+	// Create all SingleServerClients
+	clients := []Client{}
+	for _, target := range app.Targets(targetName) {
+		localPort := target.Base
+		if !isLocalTest {
+			localPort = setupChannel(target.Base, target.SshPort, target.Ssh)
+		}
+
+		serverAddr := fmt.Sprintf("localhost:%d", localPort)
+		client, err := rpc.DialHTTP("tcp", serverAddr)
+		if err != nil {
+			return nil, fmt.Errorf("Dialing: %s", err)
+		}
+
+		clients = append(clients, &SingleServerClient{
+			app:         app,
+			client:      client,
+			target:      target,
+			appDir:      path.Dir(deployFile),
+			isLocalTest: isLocalTest,
+		})
+	}
+
+	if len(clients) == 0 {
 		return nil, fmt.Errorf("Invalid target: '%s'", targetName)
 	}
 
-	localPort := target.Base
-	if !isLocalTest {
-		localPort = setupChannel(target.Base, target.SshPort, target.Ssh)
-	}
-
-	serverAddr := fmt.Sprintf("localhost:%d", localPort)
-	client, err := rpc.DialHTTP("tcp", serverAddr)
-	if err != nil {
-		return nil, fmt.Errorf("Dialing: %s", err)
-	}
-
-	return &SingleServerClient{
-		app:         app,
-		client:      client,
-		target:      target,
-		appDir:      path.Dir(deployFile),
-		isLocalTest: isLocalTest,
+	return &MultiServerClient{
+		app:     app,
+		appDir:  path.Dir(deployFile),
+		clients: clients,
 	}, nil
 }
 
 func (c *SingleServerClient) Build() error {
-	cmd := exec.Command("sh", "-c", c.app.BuildCmd())
-	cmd.Dir = c.appDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	return nil
+	return build(c.app.BuildCmd(), c.appDir)
 }
 
 func (c *SingleServerClient) Push(deployId string) error {
@@ -190,8 +198,8 @@ func (c *SingleServerClient) SetMainByPort(port int) error {
 	return nil
 }
 
-func (c *SingleServerClient) SetMainById(id string) error {
-	req := &SetMainByIdRequest{id}
+func (c *SingleServerClient) SetMainById(deployId string) error {
+	req := &SetMainByIdRequest{deployId}
 	var reply SetMainByIdReply
 	err := c.client.Call("RpcServer.SetMainById", req, &reply)
 	if err != nil {
@@ -270,4 +278,99 @@ func (c *SingleServerClient) Shutdown() {
 	var args ShutdownRequest
 	var reply ShutdownResponse
 	c.client.Call("RpcServer.Shutdown", &args, &reply)
+}
+
+// MultiServerClient
+
+func (c *MultiServerClient) Build() error {
+	return build(c.app.BuildCmd(), c.appDir)
+}
+
+func (c *MultiServerClient) Push(deployId string) error {
+	for _, c := range c.clients {
+		if err := c.Push(deployId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *MultiServerClient) Run(deployId string) error {
+	for _, c := range c.clients {
+		if err := c.Run(deployId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *MultiServerClient) Stop(deployId string) error {
+	for _, c := range c.clients {
+		if err := c.Stop(deployId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *MultiServerClient) SetMainByPort(port int) error {
+	// Only makes sense if you are connecting to a single backend
+	// server
+	if len(c.clients) > 1 {
+		return fmt.Errorf("Cannot set current app by port when target is a group of machines")
+	}
+
+	return c.clients[0].SetMainByPort(port)
+}
+
+func (c *MultiServerClient) SetMainById(deployId string) error {
+	for _, c := range c.clients {
+		if err := c.SetMainById(deployId); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *MultiServerClient) ListDeploys() ([]*Deploy, error) {
+	var deploys []*Deploy
+
+	for _, c := range c.clients {
+		if deploysForServer, err := c.ListDeploys(); err != nil {
+			return nil, err
+		} else {
+			deploys = append(deploys, deploysForServer...)
+		}
+	}
+
+	return deploys, nil
+}
+
+func (c *MultiServerClient) KillUnknownProcesses() {
+	for _, c := range c.clients {
+		c.KillUnknownProcesses()
+	}
+}
+
+func (c *MultiServerClient) Shutdown() {
+	for _, c := range c.clients {
+		c.Shutdown()
+	}
+}
+
+func build(buildCmd string, appDir string) error {
+	cmd := exec.Command("sh", "-c", buildCmd)
+	cmd.Dir = appDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
 }

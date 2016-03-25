@@ -58,7 +58,7 @@ func serverMain() {
 }
 
 func clientMain() {
-	client, err := NewClientImpl(*deployFile, *targetName, *isLocalTest)
+	client, err := NewClient(*deployFile, TargetName(*targetName), *isLocalTest)
 	if err != nil {
 		log.Fatal("NewClient:", err)
 	}
