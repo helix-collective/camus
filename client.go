@@ -18,11 +18,8 @@ type Client interface {
 	// Run runs the specified deploy, returning the port it is listening on.
 	Run(deployId string) error
 
-	// Sets active deploy by port
-	SetMainByPort(port int) error
-
-	// Sets active deploy using the deploy id
-	SetMainById(string) error
+	SetActiveByPort(port int) error
+	SetActiveById(string) error
 
 	ListDeploys() ([]*Deploy, error)
 	Stop(deployId string) error
@@ -187,10 +184,10 @@ func (c *SingleServerClient) Stop(deployId string) error {
 	return c.client.Call("RpcServer.StopDeploy", &req, &reply)
 }
 
-func (c *SingleServerClient) SetMainByPort(port int) error {
-	req := &SetMainPortRequest{port}
-	var reply SetMainPortReply
-	err := c.client.Call("RpcServer.SetMainByPort", req, &reply)
+func (c *SingleServerClient) SetActiveByPort(port int) error {
+	req := &SetActivePortRequest{port}
+	var reply SetActivePortReply
+	err := c.client.Call("RpcServer.SetActiveByPort", req, &reply)
 	if err != nil {
 		return err
 	}
@@ -198,10 +195,10 @@ func (c *SingleServerClient) SetMainByPort(port int) error {
 	return nil
 }
 
-func (c *SingleServerClient) SetMainById(deployId string) error {
-	req := &SetMainByIdRequest{deployId}
-	var reply SetMainByIdReply
-	err := c.client.Call("RpcServer.SetMainById", req, &reply)
+func (c *SingleServerClient) SetActiveById(deployId string) error {
+	req := &SetActiveByIdRequest{deployId}
+	var reply SetActiveByIdReply
+	err := c.client.Call("RpcServer.SetActiveById", req, &reply)
 	if err != nil {
 		return err
 	}
@@ -316,19 +313,19 @@ func (c *MultiServerClient) Stop(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) SetMainByPort(port int) error {
+func (c *MultiServerClient) SetActiveByPort(port int) error {
 	// Only makes sense if you are connecting to a single backend
 	// server
 	if len(c.clients) > 1 {
 		return fmt.Errorf("Cannot set current app by port when target is a group of machines")
 	}
 
-	return c.clients[0].SetMainByPort(port)
+	return c.clients[0].SetActiveByPort(port)
 }
 
-func (c *MultiServerClient) SetMainById(deployId string) error {
+func (c *MultiServerClient) SetActiveById(deployId string) error {
 	for _, c := range c.clients {
-		if err := c.SetMainById(deployId); err != nil {
+		if err := c.SetActiveById(deployId); err != nil {
 			return err
 		}
 	}

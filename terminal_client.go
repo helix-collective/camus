@@ -97,9 +97,9 @@ func (c *TerminalClient) setCmd() error {
 	}
 
 	if isPort {
-		err = c.client.SetMainByPort(port)
+		err = c.client.SetActiveByPort(port)
 	} else {
-		err = c.client.SetMainById(deployIdOrPort)
+		err = c.client.SetActiveById(deployIdOrPort)
 	}
 
 	if err != nil {

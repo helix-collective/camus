@@ -60,15 +60,15 @@ func (tc *testClient) Stop(deployId string) {
 	}
 }
 
-func (tc *testClient) SetMainByPort(port int) {
-	err := tc.client.SetMainByPort(port)
+func (tc *testClient) SetActiveByPort(port int) {
+	err := tc.client.SetActiveByPort(port)
 	if err != nil {
 		tc.t.Fatalf("set main by port: %s\n", err)
 	}
 }
 
-func (tc *testClient) SetMainById(id string) {
-	err := tc.client.SetMainById(id)
+func (tc *testClient) SetActiveById(id string) {
+	err := tc.client.SetActiveById(id)
 	if err != nil {
 		tc.t.Fatalf("set main by id: %s\n", err)
 	}
@@ -410,11 +410,11 @@ func TestHaproxy(t *testing.T) {
 
 	// TODO(koz): Don't hardcode the haproxy port.
 	haproxyPort := 8098
-	client.SetMainById(v1DeployId)
+	client.SetActiveById(v1DeployId)
 	expectGet(t, haproxyPort, "/file", "version 1")
-	client.SetMainById(v2DeployId)
+	client.SetActiveById(v2DeployId)
 	expectGet(t, haproxyPort, "/file", "version 2")
-	client.SetMainById(v1DeployId)
+	client.SetActiveById(v1DeployId)
 	expectGet(t, haproxyPort, "/file", "version 1")
 
 	// Same test as above set via port instead of deploy id
@@ -429,11 +429,11 @@ func TestHaproxy(t *testing.T) {
 			v2Port = d.Port
 		}
 	}
-	client.SetMainByPort(v2Port)
+	client.SetActiveByPort(v2Port)
 	expectGet(t, haproxyPort, "/file", "version 2")
-	client.SetMainByPort(v1Port)
+	client.SetActiveByPort(v1Port)
 	expectGet(t, haproxyPort, "/file", "version 1")
-	client.SetMainByPort(v2Port)
+	client.SetActiveByPort(v2Port)
 	expectGet(t, haproxyPort, "/file", "version 2")
 }
 

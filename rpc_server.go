@@ -22,27 +22,27 @@ func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply)
 
 ////////////////
 
-type SetMainPortRequest struct {
+type SetActivePortRequest struct {
 	Port int
 }
-type SetMainPortReply struct {
+type SetActivePortReply struct {
 }
 
-func (s *RpcServer) SetMainByPort(arg SetMainPortRequest,
-	reply *RunReply) error {
-	return s.server.SetMainByPort(arg.Port)
+func (s *RpcServer) SetActiveByPort(arg SetActivePortRequest,
+	reply *SetActivePortReply) error {
+	return s.server.SetActiveByPort(arg.Port)
 }
 
 ////////////////
 
-type SetMainByIdRequest struct {
+type SetActiveByIdRequest struct {
 	Id string
 }
-type SetMainByIdReply struct{}
+type SetActiveByIdReply struct{}
 
-func (s *RpcServer) SetMainById(arg SetMainByIdRequest,
-	reply *SetMainByIdReply) error {
-	return s.server.SetMainById(arg.Id)
+func (s *RpcServer) SetActiveById(arg SetActiveByIdRequest,
+	reply *SetActiveByIdReply) error {
+	return s.server.SetActiveById(arg.Id)
 }
 
 ////////////////

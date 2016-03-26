@@ -406,11 +406,11 @@ func (s *ServerImpl) writeConfig() error {
 		data, os.FileMode(0644))
 }
 
-func (s *ServerImpl) SetMainByPort(port int) error {
+func (s *ServerImpl) SetActiveByPort(port int) error {
 	return s.reloadHaproxy(port)
 }
 
-func (s *ServerImpl) SetMainById(id string) error {
+func (s *ServerImpl) SetActiveById(id string) error {
 	for port, deployId := range s.config.Ports {
 		if deployId == id {
 			return s.reloadHaproxy(port)
