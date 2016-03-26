@@ -171,6 +171,10 @@ func startClient(
 	conf string) *testClient {
 
 	isLocalTest := true
+	if os.Getenv("USE_SSH") != "" {
+		isLocalTest = false
+	}
+
 	client, err := NewClient(conf, targetName, isLocalTest)
 	if err != nil {
 		t.Fatalf("%s", err)

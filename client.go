@@ -28,14 +28,11 @@ type Client interface {
 }
 
 type SingleServerClient struct {
-	app    Application
-	client *rpc.Client
-	target *Target
-	appDir string
-
-	// In test mode, connect to a camus server running on the same machine, and
-	// all 'remote commands' are executed locally (via bash), as opposed to via ssh
-	isLocalTest bool
+	app           Application
+	client        *rpc.Client
+	target        *Target
+	appDir        string
+	serverChannel TargetBox
 }
 
 // Client which communicates with multiple underlying servers at once. Used if
@@ -52,12 +49,28 @@ func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*Mul
 		return nil, err
 	}
 
+	appDir := path.Dir(deployFile)
+
 	// Create all SingleServerClients
 	clients := []Client{}
 	for _, target := range app.Targets(targetName) {
 		localPort := target.Base
+		var serverChannel TargetBox
+
 		if !isLocalTest {
-			localPort = setupChannel(target.Base, target.SshPort, target.Ssh)
+			localPort = getFreeLocalPort()
+			serverChannel, err = NewSshChannel(
+				target.Base,
+				localPort,
+				target.SshPort,
+				target.Ssh,
+				newCommandRunner(appDir),
+			)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			serverChannel = NewLocalChannel(newCommandRunner(appDir))
 		}
 
 		serverAddr := fmt.Sprintf("localhost:%d", localPort)
@@ -67,11 +80,11 @@ func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*Mul
 		}
 
 		clients = append(clients, &SingleServerClient{
-			app:         app,
-			client:      client,
-			target:      target,
-			appDir:      path.Dir(deployFile),
-			isLocalTest: isLocalTest,
+			app:           app,
+			client:        client,
+			target:        target,
+			appDir:        appDir,
+			serverChannel: serverChannel,
 		})
 	}
 
@@ -105,28 +118,11 @@ func (c *SingleServerClient) Push(deployId string) error {
 	remoteDeployDir := path.Join(reply.Path, deployId)
 	remoteLatestDir := path.Join(remoteDeployDir, "../../_latest")
 
-	// Base rsync command
-	rsyncArgs := []string{
-		"-azv", "--delete",
-		localDeployDir + "/",
-	}
-
-	// Extra flags to rsync over ssh
-	if c.isLocalTest {
-		rsyncArgs = append(rsyncArgs, remoteLatestDir)
-	} else {
-		rsyncArgs = append(rsyncArgs, []string{
-			"-e",
-			fmt.Sprintf("ssh -p %d -o StrictHostKeyChecking=no", c.target.SshPort),
-			c.target.Ssh + ":" + remoteLatestDir,
-		}...)
-	}
-
-	if err := c.runVisibleCmd("rsync", rsyncArgs...); err != nil {
+	if err := c.serverChannel.Copy(localDeployDir, remoteLatestDir); err != nil {
 		return err
 	}
 
-	if err := c.runRemoteCmd("rsync", "-a", "--delete", remoteLatestDir+"/", remoteDeployDir); err != nil {
+	if err := c.serverChannel.Exec("rsync", "-a", "--delete", remoteLatestDir+"/", remoteDeployDir); err != nil {
 		return err
 	}
 
@@ -135,36 +131,13 @@ func (c *SingleServerClient) Push(deployId string) error {
 	postDeployCmd := c.app.PostDeployCmd()
 	if postDeployCmd != "" {
 		cmd := fmt.Sprintf("cd %s; %s", remoteDeployDir, postDeployCmd)
-		if err := c.runRemoteCmd(cmd); err != nil {
+		if err := c.serverChannel.Exec(cmd); err != nil {
 			return err
 		}
 		c.info("post deploy command completed")
 	}
 
 	return nil
-}
-
-func (c *SingleServerClient) runRemoteCmd(command ...string) error {
-	if c.isLocalTest {
-		return c.runVisibleCmd("bash", "-c", strings.Join(command, " "))
-	} else {
-		sshArgs := []string{
-			"-o", "StrictHostKeyChecking=no",
-			"-p", strconv.Itoa(c.target.SshPort),
-			c.target.Ssh,
-		}
-		args := append(sshArgs, command...)
-		return c.runVisibleCmd("ssh", args...)
-	}
-}
-
-func (c *SingleServerClient) runVisibleCmd(command string, args ...string) error {
-	cmd := exec.Command(command, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir = c.appDir
-	fmt.Printf("exec %s\n", cmd.Args)
-	return cmd.Run()
 }
 
 func (c *SingleServerClient) Run(deployId string) error {
@@ -238,31 +211,6 @@ func getFreeLocalPort() (port int) {
 	}
 
 	return
-}
-
-func setupChannel(remotePort int, sshPort int, login string) int {
-	localPort := getFreeLocalPort()
-
-	cmd := exec.Command(
-		"ssh", "-o", "StrictHostKeyChecking=no", "-p", strconv.Itoa(sshPort), login,
-		fmt.Sprintf("-L%d:localhost:%d", localPort, remotePort))
-	_, err := cmd.StdinPipe()
-	err = cmd.Start()
-
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-
-	fmt.Printf("Opening connection to %s:%d -> camus@%d ..",
-		login, sshPort, remotePort)
-
-	for portFree(localPort) {
-		print(".")
-		sleepSeconds(1)
-	}
-	println()
-
-	return localPort
 }
 
 func (c *SingleServerClient) KillUnknownProcesses() {
@@ -370,4 +318,15 @@ func build(buildCmd string, appDir string) error {
 	}
 
 	return nil
+}
+
+func newCommandRunner(cwd string) CommandRunner {
+	return func(command string, args ...string) error {
+		cmd := exec.Command(command, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = cwd
+		fmt.Printf("exec %s\n", cmd.Args)
+		return cmd.Run()
+	}
 }
