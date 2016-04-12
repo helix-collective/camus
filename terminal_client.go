@@ -119,7 +119,7 @@ func (c *TerminalClient) listCmd() error {
 
 	tbl := TableDef{
 		Columns: []ColumnDef{
-			ColumnDef{"id", 25},
+			ColumnDef{"id", 40},
 			ColumnDef{"pid", 5},
 			ColumnDef{"tracked", 7},
 			ColumnDef{"port", 4},
