@@ -110,11 +110,20 @@ func (c *TerminalClient) setCmd() error {
 	return nil
 }
 
+type ByDeployId []*Deploy
+
+func (ds ByDeployId) Len() int           { return len(ds) }
+func (ds ByDeployId) Swap(i, j int)      { ds[i], ds[j] = ds[j], ds[i] }
+func (ds ByDeployId) Less(i, j int) bool { return ds[i].Id < ds[j].Id }
+
 func (c *TerminalClient) listCmd() error {
 	deploys, err := c.client.ListDeploys()
 	if err != nil {
 		return err
 	}
+
+	sort.Sort(ByDeployId(deploys))
+
 	fmt.Printf("Deploys:\n")
 
 	tbl := TableDef{
@@ -129,15 +138,25 @@ func (c *TerminalClient) listCmd() error {
 	}
 	tbl.PrintHeader()
 
-	for _, deploy := range deploys {
+	prevId := ""
+	for _, d := range deploys {
+		id := d.Id
+
+		// Only show Id once per group of related deploys
+		if d.Id == prevId {
+			id = ""
+		}
+
 		tbl.PrintRow(
-			deploy.Id,
-			deploy.Pid,
-			yn(deploy.Tracked),
-			deploy.Port,
-			deploy.Health,
-			fmt.Sprintf("%v", deploy.Errors),
+			id,
+			d.Pid,
+			yn(d.Tracked),
+			d.Port,
+			d.Health,
+			fmt.Sprintf("%v", d.Errors),
 		)
+
+		prevId = d.Id
 	}
 	return nil
 }
