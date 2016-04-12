@@ -19,8 +19,7 @@ import (
 )
 
 type Deploy struct {
-	Id   string
-	Note string
+	Id string
 
 	// known to the system config, versus just found either
 	// running on a port or in the deploys dir
