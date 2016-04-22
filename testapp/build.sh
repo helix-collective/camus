@@ -10,6 +10,8 @@ cp deploy.json build/
 cp -a node_modules build/
 cp haproxy.cfg.tpl build/
 cp start-haproxy.sh build/
+cp nginx.conf.tpl build/
+cp start-nginx.sh build/
 
 echo "Built to `pwd`/build"
 

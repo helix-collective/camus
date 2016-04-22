@@ -188,8 +188,15 @@ func (s *ServerImpl) Enforce() {
 			fmt.Printf("warning: could not read deploy %s's pid file: %s\n", deployId, err)
 		} else if pid < 0 {
 			//no pid override
-		} else if running.Pid == pid {
-			continue
+		} else if pid == running.Pid {
+			continue //running pid matches value in file
+		} else {
+			parentPid, err := getProcessParentId(running.Pid)
+			if (err != nil) {
+				fmt.Printf("warning: could not get parent process id for %s/%d/%d in %s\n", deployId, running.Pid, pid);
+			} else if (parentPid == pid) {
+				continue;
+			}
 		}
 
 		//otherwise, check the default: the deployed app in the deploy dir on the deploy port

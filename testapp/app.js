@@ -54,8 +54,9 @@ var server = app.listen(appPort, function () {
 });
 
 function startProxy(frontPort, appPort) {
-  var cmd = './start-haproxy.sh ' + frontPort + ' '+ appPort;
-  console.log("run haproxy on %s", frontPort);
+  //var cmd = './start-haproxy.sh ' + frontPort + ' '+ appPort;
+  var cmd = './start-nginx.sh nginx ' + __dirname + ' ' + frontPort + ' '+ appPort;
+  console.log("run proxy on " + frontPort);
   exec(cmd, function(err, out, code) {
     if (err instanceof Error) {
       throw err;

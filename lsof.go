@@ -110,6 +110,28 @@ func parseProcess(line string) (Process, error) {
 	}, nil
 }
 
+func getProcessParentId(pid int) (int, error) {
+	cmd := exec.Command("ps", "-o", "ppid,pid", strconv.Itoa(pid))
+	data, err := cmd.Output()
+	if err != nil {
+		return -1, err
+	}
+
+	//first line is the header
+	line := strings.Split(string(data), "\n")[1]
+	re := regexp.MustCompile("^ *([0-9]+) *([0-9]+) *$")
+	bits := re.FindStringSubmatch(line)
+
+	gotPid, err := strconv.Atoi(bits[2])
+	if err != nil {
+		return -1, err
+	} else if gotPid != pid {
+		return -1, fmt.Errorf("error getting parent pid")
+	}
+
+	return strconv.Atoi(bits[1])
+}
+
 /*
 func main() {
 	ps, err := FindListeningProcesses(8000, 8100)
