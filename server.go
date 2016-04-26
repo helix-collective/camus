@@ -33,6 +33,10 @@ type Deploy struct {
 	// The id of the process running this deploy.
 	Pid int
 
+	// Is this the port that is currently 'set' and haProxy is 
+	// pointing to it
+	Set bool
+
 	// http status code,
 	// 0 for nothing running on port (or no port specified)
 	// negative timeout or something else wrong with the deploy
@@ -293,6 +297,10 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	knownRunningDeploys := []*Deploy{}
 	deployIds := s.readDeployIdsFromDisk()
 	knownDeploys := []*Deploy{}
+	setPort, err := getPortMarkedAsSet(s.endPort)
+	if err != nil {
+		log.Println(err)
+	}
 	for _, deployId := range deployIds {
 		proc, running := procsByDeployId[deployId]
 		if pidOverride, err := s.getDeployPidOverride(deployId); err == nil {
@@ -305,6 +313,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 			Id:      deployId,
 			Pid:     proc.Pid,
 			Port:    proc.Port,
+			Set:     proc.Port == setPort,
 			Tracked: s.lookupConfiguredPort(deployId) != 0,
 		}
 		if running {
@@ -322,6 +331,7 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 			Id:      fmt.Sprintf("%s-%d", proc.Name, proc.Port),
 			Pid:     proc.Pid,
 			Port:    proc.Port,
+			Set:     proc.Port == setPort,
 			Tracked: false,
 		})
 	}

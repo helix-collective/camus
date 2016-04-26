@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"errors"
 )
 
 type testClient struct {
@@ -570,4 +571,66 @@ func TestPort(t *testing.T) {
 	if deploys[0].Health != 0 {
 		t.Fatalf("expected health to be 0, but is %d", deploys[0].Health)
 	}
+}
+
+// This will return the active deploy from the given list
+// or nil if there is no active deploy. This will return an
+// error if more than one deploy is marked as active
+func getActiveDeploy(deploys []*Deploy) (*Deploy, error) {
+	var activeDeploy *Deploy
+	activeDeploy = nil
+	for _, deploy := range deploys {
+		if deploy.Set {
+			// Check that there isn't already an active deploy
+			if activeDeploy != nil {
+				return nil, errors.New("More than one deploy marked as active")
+			}
+			activeDeploy = deploy
+		}
+	}
+	return activeDeploy, nil
+}
+
+func expectActiveDeploy(t *testing.T, deploys []*Deploy, deployId string) {
+	activeDeploy, err := getActiveDeploy(deploys)
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+
+	if activeDeploy == nil && deployId != "" {
+		t.Fatalf("No deploy is marked as active, expected %s", deployId)
+	} else if activeDeploy != nil && activeDeploy.Id != deployId {
+		t.Fatalf("Expected %s to be marked as active, got %s", deployId, activeDeploy.Id)
+	}
+}
+
+// TestActivePort tests whether deploys are marked as active correctly
+func TestActiveDeploy(t *testing.T) {
+	client, server := startCamus(t)
+	defer server.Kill()
+	defer client.Shutdown()
+
+	client.Build()
+	v1DeployId := client.Push()
+	v2DeployId := client.Push()
+
+	client.Run(v1DeployId)
+	client.Run(v2DeployId)
+
+	// No deploys should be marked as active
+	expectActiveDeploy(t, client.ListDeploys(), "")
+	
+	client.SetActiveById(v1DeployId)
+	// Expect v1 to be active
+	expectActiveDeploy(t, client.ListDeploys(), v1DeployId)
+
+	client.SetActiveById(v2DeployId)
+	// Expect v2 to be active
+	expectActiveDeploy(t, client.ListDeploys(), v2DeployId)
+
+
+	// Stop the currently active client, check that no deploys are active
+	client.Stop(v2DeployId)
+	expectActiveDeploy(t, client.ListDeploys(), "")
+
 }

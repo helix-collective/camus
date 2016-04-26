@@ -128,7 +128,7 @@ func (c *TerminalClient) listCmd() error {
 
 	tbl := TableDef{
 		Columns: []ColumnDef{
-			ColumnDef{"id", 40},
+			ColumnDef{"   id", 45},
 			ColumnDef{"pid", 5},
 			ColumnDef{"tracked", 7},
 			ColumnDef{"port", 4},
@@ -148,7 +148,7 @@ func (c *TerminalClient) listCmd() error {
 		}
 
 		tbl.PrintRow(
-			id,
+			fmt.Sprintf("%s%s", activePointer(d.Set), id),
 			d.Pid,
 			yn(d.Tracked),
 			d.Port,
@@ -189,5 +189,13 @@ func yn(b bool) string {
 		return "y"
 	} else {
 		return "n"
+	}
+}
+
+func activePointer(b bool) string {
+	if b {
+		return " * "
+	} else {
+		return "   "
 	}
 }
