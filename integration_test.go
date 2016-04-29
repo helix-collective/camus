@@ -374,10 +374,31 @@ func TestStop(t *testing.T) {
 	}
 }
 
-func writeDataIntoTestapp(t *testing.T, data string) {
-	err := ioutil.WriteFile("testapp/data/file", []byte(data), os.FileMode(0644))
+func atomicWriteFile(data string, filename string) error {
+	tempFile, err := ioutil.TempFile(os.TempDir(), "tempData")
 	if err != nil {
-		t.Fatalf("write file: %s\n", err)
+		return fmt.Errorf("could not create temp file: %s\n", err)
+	}
+
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	_, err = tempFile.Write([]byte(data))
+	if err != nil {
+		return fmt.Errorf("Could not write to temp file: %s\n", err)
+	}
+
+	err = os.Rename(tempFile.Name(), filename)
+	if err != nil {
+		return fmt.Errorf("Could not move temp file to testapp: %s\n", err)
+	}
+
+	return nil
+}
+
+func writeDataIntoTestapp(t *testing.T, data string) {
+	if err := atomicWriteFile(data, "testapp/data/file"); err != nil {
+		t.Fatalf("%s", err)
 	}
 }
 
