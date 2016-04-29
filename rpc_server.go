@@ -55,7 +55,12 @@ type RunReply struct {
 }
 
 func (s *RpcServer) Run(arg RunRequest, reply *RunReply) error {
-	port, err := s.server.Run(arg.DeployId)
+	deployId, err := s.server.GetFullDeployIdFromShortName(arg.DeployId)
+	if err != nil {
+		return err
+	}
+
+	port, err := s.server.Run(deployId)
 	if err != nil {
 		return err
 	}
@@ -101,7 +106,12 @@ type StopDeployResponse struct {
 }
 
 func (s *RpcServer) StopDeploy(arg StopDeployRequest, reply *StopDeployResponse) error {
-	return s.server.Stop(arg.DeployId)
+	deployId, err := s.server.GetFullDeployIdFromShortName(arg.DeployId)
+	if err != nil {
+		return err
+	}
+
+	return s.server.Stop(deployId)
 }
 
 ////////////////

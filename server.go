@@ -63,6 +63,7 @@ const (
 	haproxyConfig        = "haproxy.cfg"
 	haproxyPid           = "haproxy.pid"
 	appPid               = "PID_FILE"
+	minShortNameLength   = 3
 )
 
 type Config struct {
@@ -418,6 +419,26 @@ func (s *ServerImpl) SetActiveById(id string) error {
 	}
 
 	return fmt.Errorf("No deploy %s, run 'list' to see valid deploys", id)
+}
+
+func (s *ServerImpl) GetFullDeployIdFromShortName(deployShortName string) (string, error) {
+	if len(deployShortName) < minShortNameLength {
+		return "", fmt.Errorf("Deploy name substring is too short, needs to be at least %d characters", minShortNameLength)
+	}
+
+	var matchingIds []string
+	for _, deployId := range s.readDeployIdsFromDisk() {
+		if strings.Contains(deployId, deployShortName) {
+			matchingIds = append(matchingIds, deployId)
+		}
+	}
+
+	numMatching := len(matchingIds)
+	if numMatching != 1 {
+		return "", fmt.Errorf("short name corresponds to %d deploy IDs, be more specific", numMatching)
+	}
+
+	return matchingIds[0], nil
 }
 
 func (s *ServerImpl) Run(deployIdToRun string) (int, error) {
