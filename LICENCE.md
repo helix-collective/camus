@@ -1,3 +1,5 @@
+BSD License
+
 Copyright (c) 2016, Helix Collective
 All rights reserved.
 
