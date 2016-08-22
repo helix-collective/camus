@@ -27,7 +27,7 @@ type Client interface {
 	Shutdown()
 }
 
-type SingleServerClient struct {
+type SingleTargetClient struct {
 	app           Application
 	client        *rpc.Client
 	target        *Target
@@ -37,13 +37,13 @@ type SingleServerClient struct {
 
 // Client which communicates with multiple underlying servers at once. Used if
 // the target is actually a group of servers
-type MultiServerClient struct {
+type MultiTargetClient struct {
 	app     Application
 	appDir  string
 	clients []Client
 }
 
-func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*MultiServerClient, error) {
+func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*MultiTargetClient, error) {
 	app, err := ApplicationFromConfig(true, deployFile)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*Mul
 
 	appDir := path.Dir(deployFile)
 
-	// Create all SingleServerClients
+	// Create all SingleTargetClients
 	clients := []Client{}
 	for _, target := range app.Targets(targetName) {
 		localPort := target.Base
@@ -79,7 +79,7 @@ func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*Mul
 			return nil, fmt.Errorf("Dialing: %s", err)
 		}
 
-		clients = append(clients, &SingleServerClient{
+		clients = append(clients, &SingleTargetClient{
 			app:           app,
 			client:        client,
 			target:        target,
@@ -92,18 +92,18 @@ func NewClient(deployFile string, targetName TargetName, isLocalTest bool) (*Mul
 		return nil, fmt.Errorf("Invalid target: '%s'", targetName)
 	}
 
-	return &MultiServerClient{
+	return &MultiTargetClient{
 		app:     app,
 		appDir:  path.Dir(deployFile),
 		clients: clients,
 	}, nil
 }
 
-func (c *SingleServerClient) Build() error {
+func (c *SingleTargetClient) Build() error {
 	return build(c.app.BuildCmd(), c.appDir)
 }
 
-func (c *SingleServerClient) Push(deployId string) error {
+func (c *SingleTargetClient) Push(deployId string) error {
 	req := &GetDeploysPathRequest{}
 	var reply GetDeploysPathReply
 
@@ -140,7 +140,7 @@ func (c *SingleServerClient) Push(deployId string) error {
 	return nil
 }
 
-func (c *SingleServerClient) Run(deployId string) error {
+func (c *SingleTargetClient) Run(deployId string) error {
 	req := &RunRequest{deployId}
 	var reply RunReply
 	err := c.client.Call("RpcServer.Run", req, &reply)
@@ -151,13 +151,13 @@ func (c *SingleServerClient) Run(deployId string) error {
 	return nil
 }
 
-func (c *SingleServerClient) Stop(deployId string) error {
+func (c *SingleTargetClient) Stop(deployId string) error {
 	req := &StopDeployRequest{deployId}
 	var reply StopDeployResponse
 	return c.client.Call("RpcServer.StopDeploy", &req, &reply)
 }
 
-func (c *SingleServerClient) SetActiveByPort(port int) error {
+func (c *SingleTargetClient) SetActiveByPort(port int) error {
 	req := &SetActivePortRequest{port}
 	var reply SetActivePortReply
 	err := c.client.Call("RpcServer.SetActiveByPort", req, &reply)
@@ -168,7 +168,7 @@ func (c *SingleServerClient) SetActiveByPort(port int) error {
 	return nil
 }
 
-func (c *SingleServerClient) SetActiveById(deployId string) error {
+func (c *SingleTargetClient) SetActiveById(deployId string) error {
 	req := &SetActiveByIdRequest{deployId}
 	var reply SetActiveByIdReply
 	err := c.client.Call("RpcServer.SetActiveById", req, &reply)
@@ -179,7 +179,7 @@ func (c *SingleServerClient) SetActiveById(deployId string) error {
 	return nil
 }
 
-func (c *SingleServerClient) ListDeploys() ([]*Deploy, error) {
+func (c *SingleTargetClient) ListDeploys() ([]*Deploy, error) {
 	args := &ListDeploysRequest{}
 	var reply ListDeploysReply
 	if err := c.client.Call("RpcServer.ListDeploys", args, &reply); err != nil {
@@ -189,7 +189,7 @@ func (c *SingleServerClient) ListDeploys() ([]*Deploy, error) {
 	return reply.Deploys, nil
 }
 
-func (c *SingleServerClient) info(args ...interface{}) {
+func (c *SingleTargetClient) info(args ...interface{}) {
 	log.Println(prepend("    client: ", args)...)
 }
 
@@ -213,25 +213,25 @@ func getFreeLocalPort() (port int) {
 	return
 }
 
-func (c *SingleServerClient) KillUnknownProcesses() {
+func (c *SingleTargetClient) KillUnknownProcesses() {
 	var args KillUnknownProcessesRequest
 	var reply KillUnknownProcessesResponse
 	c.client.Call("RpcServer.KillUnknownProcesses", &args, &reply)
 }
 
-func (c *SingleServerClient) Shutdown() {
+func (c *SingleTargetClient) Shutdown() {
 	var args ShutdownRequest
 	var reply ShutdownResponse
 	c.client.Call("RpcServer.Shutdown", &args, &reply)
 }
 
-// MultiServerClient
+// MultiTargetClient
 
-func (c *MultiServerClient) Build() error {
+func (c *MultiTargetClient) Build() error {
 	return build(c.app.BuildCmd(), c.appDir)
 }
 
-func (c *MultiServerClient) Push(deployId string) error {
+func (c *MultiTargetClient) Push(deployId string) error {
 	for _, c := range c.clients {
 		if err := c.Push(deployId); err != nil {
 			return err
@@ -241,7 +241,7 @@ func (c *MultiServerClient) Push(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) Run(deployId string) error {
+func (c *MultiTargetClient) Run(deployId string) error {
 	for _, c := range c.clients {
 		if err := c.Run(deployId); err != nil {
 			return err
@@ -251,7 +251,7 @@ func (c *MultiServerClient) Run(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) Stop(deployId string) error {
+func (c *MultiTargetClient) Stop(deployId string) error {
 	for _, c := range c.clients {
 		if err := c.Stop(deployId); err != nil {
 			return err
@@ -261,7 +261,7 @@ func (c *MultiServerClient) Stop(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) SetActiveByPort(port int) error {
+func (c *MultiTargetClient) SetActiveByPort(port int) error {
 	// Only makes sense if you are connecting to a single backend
 	// server
 	if len(c.clients) > 1 {
@@ -271,7 +271,7 @@ func (c *MultiServerClient) SetActiveByPort(port int) error {
 	return c.clients[0].SetActiveByPort(port)
 }
 
-func (c *MultiServerClient) SetActiveById(deployId string) error {
+func (c *MultiTargetClient) SetActiveById(deployId string) error {
 	for _, c := range c.clients {
 		if err := c.SetActiveById(deployId); err != nil {
 			return err
@@ -281,7 +281,7 @@ func (c *MultiServerClient) SetActiveById(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) ListDeploys() ([]*Deploy, error) {
+func (c *MultiTargetClient) ListDeploys() ([]*Deploy, error) {
 	var deploys []*Deploy
 
 	for _, c := range c.clients {
@@ -295,13 +295,13 @@ func (c *MultiServerClient) ListDeploys() ([]*Deploy, error) {
 	return deploys, nil
 }
 
-func (c *MultiServerClient) KillUnknownProcesses() {
+func (c *MultiTargetClient) KillUnknownProcesses() {
 	for _, c := range c.clients {
 		c.KillUnknownProcesses()
 	}
 }
 
-func (c *MultiServerClient) Shutdown() {
+func (c *MultiTargetClient) Shutdown() {
 	for _, c := range c.clients {
 		c.Shutdown()
 	}

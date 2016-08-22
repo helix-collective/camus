@@ -53,7 +53,7 @@ type ApplicationDef struct {
 	// e.g. user@host  (no path)
 	Targets map[TargetName]*Target
 
-	// Maps a name to a list of targets. Camu will then perform all
+	// Maps a name to a list of targets. Camus will then perform all
 	// specified actions on all targets
 	GroupTargets map[TargetName][]TargetName
 }
@@ -100,17 +100,18 @@ func ApplicationFromConfig(isClient bool, file string) (Application, error) {
 		}
 
 		if !foundTarget {
-			return errMsg("No single targets specified (need at least one)")
+			return errMsg("No 'Targets' entry defined (need at least one)")
 		}
 
 		for name, group := range def.GroupTargets {
 			if _, ok := def.Targets[name]; ok {
-				return errMsg("%s appears as a target name in both GroupTargs and single Targets (target names must be unique across both maps)")
+				return errMsg("%s appears as a target name in both 'GroupTargets and "+
+					"'Targets' (keys must be unique across both maps)", name)
 			}
 
 			for _, name := range group {
 				if _, ok := def.Targets[name]; !ok {
-					return errMsg("Expected %s to appear as an entry in 'Targets'. All target names in a target group list must be specified as a stand-alone target", name)
+					return errMsg("Expected %s to appear as an entry in 'Targets'.", name)
 				}
 			}
 		}
