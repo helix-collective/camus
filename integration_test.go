@@ -74,6 +74,13 @@ func (tc *testClient) SetActiveById(id string) {
 	}
 }
 
+func (tc *testClient) Cleanup(id string) {
+	err := tc.client.CleanupDeploy(id)
+	if err != nil {
+		tc.t.Fatalf("client cleanup: %s", err)
+	}
+}
+
 // For each matching deploy, ensure
 //   1. It's running
 //   2. The result of performing a GET query on 'path' is as expected
@@ -138,6 +145,24 @@ func findDeployById(deployId string, deploys []*Deploy) bool {
 		}
 	}
 	return false
+}
+
+func findDeployPort(deployId string, deploys []*Deploy) int {
+	for _, deploy := range deploys {
+		if deploy.Id == deployId {
+			return deploy.Port
+		}
+	}
+	return -1
+}
+
+func findDeployPid(deployId string, deploys []*Deploy) int {
+	for _, deploy := range deploys {
+		if deploy.Id == deployId {
+			return deploy.Pid
+		}
+	}
+	return 0
 }
 
 func startCamus(t *testing.T) (*testClient, *os.Process) {
@@ -570,4 +595,83 @@ func TestPort(t *testing.T) {
 	if deploys[0].Health != 0 {
 		t.Fatalf("expected health to be 0, but is %d", deploys[0].Health)
 	}
+}
+
+func TestCleanup(t *testing.T) {
+	client, server := startCamus(t)
+	defer server.Kill()
+	defer client.Shutdown()
+	client.Build()
+
+	// deploy without running and then cleanup
+	deployOnly := client.Push()
+	if !findDeployById(deployOnly, client.ListDeploys()) {
+		t.Fatal("newly minted deploy should be in the new deploy list")
+	}
+	client.Cleanup(deployOnly)
+	if findDeployById(deployOnly, client.ListDeploys()) {
+		t.Fatal("deploy should have been cleaned up")
+	}
+
+	// deploy, run then attempt cleanup. then stop and cleanup
+	deployStop := client.Push()
+	client.Run(deployStop)
+	if err := client.client.CleanupDeploy(deployStop); err == nil {
+		t.Fatal("expected error when cleaning up a running deploy")
+	}
+	if !findDeployById(deployStop, client.ListDeploys()) {
+		t.Fatal("deployStop should still be there after failed cleanup")
+	}
+	client.Stop(deployStop)
+	client.Cleanup(deployStop)
+	if findDeployById(deployStop, client.ListDeploys()) {
+		t.Fatal("deploy should have been cleaned up")
+	}
+
+	// cleanup something non-existent
+	if err := client.client.CleanupDeploy("non-existent-deploy"); err == nil {
+		t.Fatal("expected error when cleaning up a non-existent-deploy")
+	}
+
+	// deploy, run then attempt cleanup. then kill process and cleanup
+	deployKill := client.Push()
+	client.Run(deployKill)
+	if err := client.client.CleanupDeploy(deployKill); err == nil {
+		t.Fatal("expected error when cleaning up a running deploy")
+	}
+	if !findDeployById(deployKill, client.ListDeploys()) {
+		t.Fatal("deployKill should still be there after failed cleanup")
+	}
+	pid := findDeployPid(deployKill, client.ListDeploys())
+	if pid == 0 {
+		t.Fatal("could not find running process to kill")
+	}
+	// FindProcess never returns error on unix. no point checking
+	proc, _ := os.FindProcess(pid)
+	proc.Kill()
+	client.Cleanup(deployKill)
+	if findDeployById(deployKill, client.ListDeploys()) {
+		t.Fatal("deploy should have been cleaned up")
+	}
+
+	// deploy then cleanup and then do a new deploy to see if it runs on the same port
+	// it should run on the same port since it should be the lowest free port number
+	deployA := client.Push()
+	client.Run(deployA)
+	portA := findDeployPort(deployA, client.ListDeploys())
+	if portA <= 0 {
+		t.Fatal("Could not find port number of deploy")
+	}
+	client.Stop(deployA)
+	client.Cleanup(deployA)
+	if findDeployById(deployA, client.ListDeploys()) {
+		t.Fatal("Deploy should have been cleaned up")
+	}
+	deployB := client.Push()
+	client.Run(deployB)
+	portB := findDeployPort(deployB, client.ListDeploys())
+	if portB != portA {
+		t.Fatalf("ports should be the same but instead were %d and %d", portA, portB)
+	}
+
 }

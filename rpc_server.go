@@ -47,6 +47,18 @@ func (s *RpcServer) SetActiveById(arg SetActiveByIdRequest,
 
 ////////////////
 
+type DeployIdForCleanupRequest struct {
+	Id string
+}
+type DeployIdForCleanupReply struct{}
+
+func (s *RpcServer) CleanupDeploy(arg DeployIdForCleanupRequest,
+	reply *DeployIdForCleanupReply) error {
+	return s.server.CleanupDeploy(arg.Id)
+}
+
+////////////////
+
 type RunRequest struct {
 	DeployId string
 }
