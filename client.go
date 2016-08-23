@@ -24,6 +24,7 @@ type Client interface {
 	ListDeploys() ([]*Deploy, error)
 	Stop(deployId string) error
 	KillUnknownProcesses()
+	CleanupDeploy(deployId string) error
 	Shutdown()
 }
 
@@ -265,6 +266,12 @@ func setupChannel(remotePort int, sshPort int, login string) int {
 	return localPort
 }
 
+func (c *SingleServerClient) CleanupDeploy(deployIdForCleanup string) error {
+	req := &SetActiveByIdRequest{deployIdForCleanup}
+	var reply SetActiveByIdReply
+	return c.client.Call("RpcServer.CleanupDeploy", req, &reply)
+}
+
 func (c *SingleServerClient) KillUnknownProcesses() {
 	var args KillUnknownProcessesRequest
 	var reply KillUnknownProcessesResponse
@@ -345,6 +352,16 @@ func (c *MultiServerClient) ListDeploys() ([]*Deploy, error) {
 	}
 
 	return deploys, nil
+}
+
+func (c *MultiServerClient) CleanupDeploy(deployIdForCleanup string) error {
+	for _, c := range c.clients {
+		if err := c.CleanupDeploy(deployIdForCleanup); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *MultiServerClient) KillUnknownProcesses() {

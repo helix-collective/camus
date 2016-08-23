@@ -524,6 +524,28 @@ func (s *ServerImpl) commandForDeploy(deployIdToRun string, port int) (Applicati
 	return app, cmd, nil
 }
 
+func (s *ServerImpl) CleanupDeploy(deployIdToCleanup string) error {
+	procs := FindListeningProcesses(s.startPort, s.endPort)
+	procsByDeployId := makeProcessDeployIdLookup(procs)
+	_, running := procsByDeployId[deployIdToCleanup]
+	if running {
+		return errors.New("Cannot cleanup. Deploy is currently running.")
+	}
+
+	configPort := s.lookupConfiguredPort(deployIdToCleanup)
+	delete(s.config.Ports, configPort)
+	err := s.writeConfig()
+	if err != nil {
+		return fmt.Errorf("write config: %s", err)
+	}
+
+	pathToCleanUp := s.deployDir(deployIdToCleanup)
+	if _, err := os.Stat(pathToCleanUp); err != nil {
+		return err
+	}
+	return os.RemoveAll(pathToCleanUp)
+}
+
 func detachProc(cmd *exec.Cmd) {
 	// give it its own process group, so it doesn't die
 	// when the manager process exits for whatever reason

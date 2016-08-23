@@ -156,8 +156,11 @@ func (c *TerminalClient) stopCmd() error {
 }
 
 func (c *TerminalClient) cleanupCmd() error {
-	c.client.KillUnknownProcesses()
-	return nil
+	deployId := c.flags.Arg(1)
+	if deployId == "" {
+		return errors.New("Missing deploy id")
+	}
+	return c.client.CleanupDeploy(deployId)
 }
 
 func (c *TerminalClient) shutdownCmd() error {
