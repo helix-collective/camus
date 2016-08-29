@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+var regexflag = flag.String("regex", "", "Use Regex matching with deploys")
+
 type TerminalClient struct {
 	flags    *flag.FlagSet
 	client   Client
@@ -111,7 +113,8 @@ func (c *TerminalClient) setCmd() error {
 }
 
 func (c *TerminalClient) listCmd() error {
-	deploys, err := c.client.ListDeploys()
+	regex := *regexflag
+	deploys, err := c.client.ListDeploys(regex)
 	if err != nil {
 		return err
 	}

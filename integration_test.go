@@ -27,7 +27,11 @@ func (tc *testClient) Build() {
 }
 
 func (tc *testClient) ListDeploys() []*Deploy {
-	deploys, err := tc.client.ListDeploys()
+	return tc.ListDeploysWithRegex("")
+}
+
+func (tc *testClient) ListDeploysWithRegex(regex string) []*Deploy {
+	deploys, err := tc.client.ListDeploys(regex)
 	if err != nil {
 		tc.t.Fatalf("client list deploys: %s", err)
 	}
@@ -106,6 +110,12 @@ func (tc *testClient) checkDeploy(deployId string, path string, expected string)
 	if !found {
 		tc.t.Fatalf("no deploy with id %s found", deployId)
 	}
+}
+
+func (tc *testClient) pushAndRun() string {
+	deployId := tc.Push()
+	tc.Run(deployId)
+	return deployId
 }
 
 func run(t *testing.T, cmd string) *exec.Cmd {
@@ -674,4 +684,65 @@ func TestCleanup(t *testing.T) {
 		t.Fatalf("ports should be the same but instead were %d and %d", portA, portB)
 	}
 
+}
+
+func TestListRegex(t *testing.T) {
+	client, server := startCamus(t)
+	defer server.Kill()
+	defer client.Shutdown()
+	client.Build()
+
+	deployA := client.pushAndRun()
+	deployB := client.pushAndRun()
+	deployC := client.pushAndRun()
+	deployD := client.pushAndRun()
+
+	deploysA := client.ListDeploysWithRegex(deployA)
+	if len(deploysA) != 1 {
+		t.Fatalf("Expected only one deploy with matching string, got %d", len(deploysA))
+	}
+	if deployA != deploysA[0].Id {
+		t.Fatalf("Expected deployId %s got %s", deployA, deploysA[0].Id)
+	}
+
+	deploysAB := client.ListDeploysWithRegex(fmt.Sprintf("(%s|%s)", deployA, deployB))
+	if len(deploysAB) != 2 {
+		t.Fatalf("Expected only two deploys with matching string, got %d", len(deploysA))
+	}
+	if deployA != deploysAB[0].Id && deployA != deploysAB[1].Id {
+		t.Fatalf("Expected deployId %s got %s and %s", deployA, deploysAB[0].Id, deploysAB[1].Id)
+	}
+	if deployB != deploysAB[0].Id && deployB != deploysAB[1].Id {
+		t.Fatalf("Expected deployId %s got %s and %s", deployB, deploysAB[0].Id, deploysAB[1].Id)
+	}
+
+	deploysCD := client.ListDeploysWithRegex(fmt.Sprintf("(%s|%s)", deployC[2:], deployD[2:]))
+	if len(deploysCD) != 2 {
+		t.Fatalf("Expected only two deploys with matching string, got %d", len(deploysA))
+	}
+	if deployC != deploysCD[0].Id && deployC != deploysCD[1].Id {
+		t.Fatalf("Expected deployId %s got %s and %s", deployC, deploysCD[0].Id, deploysCD[1].Id)
+	}
+	if deployD != deploysCD[0].Id && deployD != deploysCD[1].Id {
+		t.Fatalf("Expected deployId %s got %s and %s", deployD, deploysCD[0].Id, deploysCD[1].Id)
+	}
+
+	deploysD := client.ListDeploysWithRegex(fmt.Sprintf("(%saaa|%s)", deployC[2:], deployD[2:]))
+	if len(deploysD) != 1 {
+		t.Fatalf("Expected only one deploy with matching string, got %d", len(deploysA))
+	}
+	if deployD != deploysD[0].Id {
+		t.Fatalf("Expected deployId %s got %s", deployD, deploysD[0].Id)
+	}
+
+	client.Stop(deployB)
+	client.Cleanup(deployB)
+
+	deploysAB = client.ListDeploysWithRegex(fmt.Sprintf("(%s|%s)", deployA, deployB))
+	if len(deploysAB) != 1 {
+		t.Fatalf("Expected only one deploy with matching string, got %d", len(deploysA))
+	}
+	if deployA != deploysA[0].Id {
+		t.Fatalf("Expected deployId %s got %s", deployA, deploysA[0].Id)
+	}
 }

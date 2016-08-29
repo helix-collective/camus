@@ -21,7 +21,7 @@ type Client interface {
 	SetActiveByPort(port int) error
 	SetActiveById(string) error
 
-	ListDeploys() ([]*Deploy, error)
+	ListDeploys(regex string) ([]*Deploy, error)
 	Stop(deployId string) error
 	KillUnknownProcesses()
 	CleanupDeploy(deployId string) error
@@ -207,8 +207,8 @@ func (c *SingleServerClient) SetActiveById(deployId string) error {
 	return nil
 }
 
-func (c *SingleServerClient) ListDeploys() ([]*Deploy, error) {
-	args := &ListDeploysRequest{}
+func (c *SingleServerClient) ListDeploys(regex string) ([]*Deploy, error) {
+	args := &ListDeploysRequest{regex}
 	var reply ListDeploysReply
 	if err := c.client.Call("RpcServer.ListDeploys", args, &reply); err != nil {
 		return nil, err
@@ -340,11 +340,11 @@ func (c *MultiServerClient) SetActiveById(deployId string) error {
 	return nil
 }
 
-func (c *MultiServerClient) ListDeploys() ([]*Deploy, error) {
+func (c *MultiServerClient) ListDeploys(regex string) ([]*Deploy, error) {
 	var deploys []*Deploy
 
 	for _, c := range c.clients {
-		if deploysForServer, err := c.ListDeploys(); err != nil {
+		if deploysForServer, err := c.ListDeploys(regex); err != nil {
 			return nil, err
 		} else {
 			deploys = append(deploys, deploysForServer...)

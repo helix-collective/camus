@@ -6,13 +6,15 @@ type RpcServer struct {
 
 ////////////////
 
-type ListDeploysRequest struct{}
+type ListDeploysRequest struct {
+	Regex string
+}
 type ListDeploysReply struct {
 	Deploys []*Deploy
 }
 
 func (s *RpcServer) ListDeploys(arg ListDeploysRequest, reply *ListDeploysReply) error {
-	deploys, err := s.server.ListDeploys()
+	deploys, err := s.server.ListDeploys(arg.Regex)
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -286,7 +287,11 @@ func (s *ServerImpl) checkAllHealth(deploys []*Deploy) {
 	}
 }
 
-func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
+func (s *ServerImpl) ListDeploys(regex string) ([]*Deploy, error) {
+	matcher, err := regexp.Compile(regex)
+	if err != nil {
+		return nil, err
+	}
 	procs := FindListeningProcesses(s.startPort, s.endPort)
 	procsByDeployId := makeProcessDeployIdLookup(procs)
 	procsByPid := makeProcessPidLookup(procs)
@@ -295,6 +300,10 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	deployIds := s.readDeployIdsFromDisk()
 	knownDeploys := []*Deploy{}
 	for _, deployId := range deployIds {
+		if !matcher.MatchString(deployId) {
+			continue
+		}
+
 		proc, running := procsByDeployId[deployId]
 		if pidOverride, err := s.getDeployPidOverride(deployId); err == nil {
 			if _, ok := procsByPid[pidOverride]; ok {
@@ -318,13 +327,15 @@ func (s *ServerImpl) ListDeploys() ([]*Deploy, error) {
 	}
 	// Any processes that haven't been accounted for yet, we list them as deploys, too.
 	unaccounted := []*Deploy{}
-	for _, proc := range unaccountedProcsByPort {
-		unaccounted = append(unaccounted, &Deploy{
-			Id:      fmt.Sprintf("%s-%d", proc.Name, proc.Port),
-			Pid:     proc.Pid,
-			Port:    proc.Port,
-			Tracked: false,
-		})
+	if len(regex) == 0 {
+		for _, proc := range unaccountedProcsByPort {
+			unaccounted = append(unaccounted, &Deploy{
+				Id:      fmt.Sprintf("%s-%d", proc.Name, proc.Port),
+				Pid:     proc.Pid,
+				Port:    proc.Port,
+				Tracked: false,
+			})
+		}
 	}
 	s.checkAllHealth(knownRunningDeploys)
 	return append(knownDeploys, unaccounted...), nil
