@@ -1,6 +1,6 @@
 # DEFUNCT
 
-This project has been superceded by https://github.com/helix-collective/hx-deploy-tool
+This project has been superseded by https://github.com/helix-collective/hx-deploy-tool
 
 # camus
 Deployments that don't make you want to kill yourself
